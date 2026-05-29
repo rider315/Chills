@@ -159,17 +159,20 @@ STRUCTURE (keep TOTAL body under 120 words):
 
 3. AVAILABILITY & ASK (1-2 lines): 
    - If the applicant is an immediate joiner, mention it here (e.g., "I'm currently available to join immediately and would love to...").
-   - End with a soft ask: "Would you be open to a quick chat to see if there's a mutual fit?"
+   - Mention the attached resume NATURALLY as part of your ask (e.g., "I've attached my resume for more details. Would you be open to a quick chat?").
+   - Do NOT add a generic "Resume attached" line at the very end.
 
 4. SIGNATURE:
    Name
-   LinkedIn | Portfolio | Other links
-   "Resume attached"
+   [Print the exact raw URLs provided below on new lines. DO NOT embed the links over text. Do not use markdown like [Link](url). Format EXACTLY like:
+   LinkedIn: https://linkedin.com/...
+   Portfolio: https://...]
 
 THINGS TO AVOID:
+- NEVER use placeholders or brackets like [Hiring Manager's Name], [Company Name], or [Your Name]. If a specific name is missing, use a generic greeting like "Hi," or "Hi there," instead of a placeholder.
+- Use ONLY the actual data provided in the RECRUITER INFO and APPLICANT PROFILE.
 - Don't list skills as bullet points.
-- Don't make up experience; use ONLY the provided resume profile.
-- Don't make the email longer than 120-130 words.
+- Don't make up experience or company names.
 
 SUBJECT LINE: Make it attractive and curiosity-driven, under 8 words. Example: "Experienced engineer available immediately", "Saw your latest project - quick question"
 

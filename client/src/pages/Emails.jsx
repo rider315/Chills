@@ -32,6 +32,7 @@ export default function Emails() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [generatingBulk, setGeneratingBulk] = useState(false);
+  const [sendingBulk, setSendingBulk] = useState(false);
   const [search, setSearch] = useState('');
   const [emailMap, setEmailMap] = useState({});
   const [statusMap, setStatusMap] = useState({}); // recruiterId -> { hasEmail, status }
@@ -123,6 +124,22 @@ export default function Emails() {
     }
   };
 
+  const handleSendBulk = async () => {
+    if (!window.confirm('Are you sure you want to send all draft emails? This might take a while depending on how many drafts you have.')) return;
+    setSendingBulk(true);
+    try {
+      const data = await post('/api/emails/send-bulk');
+      toast.success(data?.message || 'Bulk sending complete!');
+      // Refresh statuses
+      const statusData = await get('/api/emails/status');
+      setStatusMap(statusData?.statusMap || {});
+    } catch (err) {
+      toast.error(err.message || 'Bulk sending failed');
+    } finally {
+      setSendingBulk(false);
+    }
+  };
+
   const handleSave = async ({ subject, body }) => {
     if (!selectedRecruiter || !email) return;
     const aid = email.applicationId;
@@ -206,7 +223,18 @@ export default function Emails() {
           </h1>
           <p className="text-muted text-sm">Generate personalized cold emails for each recruiter.</p>
         </div>
-        <div className="emails__header-actions">
+        <div className="emails__header-actions" style={{ display: 'flex', gap: '0.75rem' }}>
+          <button
+            className="btn btn-secondary"
+            onClick={handleSendBulk}
+            disabled={sendingBulk || generatedCount === 0}
+          >
+            {sendingBulk ? (
+              <><span className="spinner spinner--sm" /> Sending...</>
+            ) : (
+              '📤 Send All'
+            )}
+          </button>
           <button
             className="btn btn-primary"
             onClick={handleGenerateBulk}

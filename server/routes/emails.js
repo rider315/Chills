@@ -372,4 +372,77 @@ router.post('/:applicationId/copy', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/emails/send-bulk
+ * Send all generated emails (drafts) in an optimized way.
+ */
+router.post('/send-bulk', async (req, res) => {
+  try {
+    const settings = await Settings.getSingleton();
+    const smtpConfig = settings.smtpConfigured ? {
+      host: settings.smtpHost,
+      port: settings.smtpPort,
+      user: settings.smtpUser,
+      pass: settings.smtpPass,
+    } : config.smtp;
+
+    if (!smtpConfig.host || !smtpConfig.user || !smtpConfig.pass) {
+      return res.status(400).json({ error: 'SMTP is not configured.' });
+    }
+
+    const transport = emailSender.createTransport(smtpConfig);
+    const fromAddress = `${smtpConfig.user}`;
+    
+    // Find all draft applications with a generated email
+    const applications = await Application.find({ status: 'draft' });
+    const readyToSend = applications.filter(app => app.generatedEmail && app.generatedEmail.subject);
+
+    if (readyToSend.length === 0) {
+      return res.status(200).json({ message: 'No draft emails ready to send.', sent: 0, total: 0 });
+    }
+
+    const resume = await Resume.findOne();
+    const resumeFile = findResumeFile(resume);
+    const attachments = resumeFile ? [resumeFile] : [];
+
+    const results = { sent: 0, failed: 0, errors: [] };
+
+    for (const app of readyToSend) {
+      try {
+        const result = await emailSender.sendEmail(transport, {
+          from: settings.userName ? `"${settings.userName}" <${fromAddress}>` : fromAddress,
+          to: app.recruiterEmail,
+          subject: app.generatedEmail.subject,
+          body: app.generatedEmail.body,
+          attachments,
+        });
+
+        if (result.success) {
+          app.status = 'sent';
+          app.sentAt = new Date();
+          await app.save();
+          results.sent++;
+        } else {
+          throw new Error(result.error);
+        }
+      } catch (err) {
+        results.failed++;
+        results.errors.push({ recruiterEmail: app.recruiterEmail, error: err.message });
+      }
+
+      // Optimization: random delay between 5 and 10 seconds to mimic human sending
+      const delayMs = Math.floor(Math.random() * (10000 - 5000 + 1)) + 5000;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+
+    return res.status(200).json({
+      message: `Bulk sending complete. Sent: ${results.sent}, Failed: ${results.failed}.`,
+      ...results,
+    });
+  } catch (error) {
+    console.error('Bulk send error:', error);
+    return res.status(500).json({ error: `Bulk sending failed: ${error.message}` });
+  }
+});
+
 module.exports = router;
