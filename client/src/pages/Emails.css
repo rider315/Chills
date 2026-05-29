@@ -1,0 +1,177 @@
+.emails__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: var(--space-xl);
+  gap: var(--space-lg);
+}
+
+.emails__title {
+  font-size: var(--text-4xl);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: var(--space-xs);
+}
+
+.emails__header-actions {
+  display: flex;
+  gap: var(--space-sm);
+  flex-shrink: 0;
+}
+
+.emails__bulk-progress {
+  animation: fadeInUp 0.3s ease;
+}
+
+/* Split layout */
+.emails__layout {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: var(--space-lg);
+  min-height: 600px;
+}
+
+/* Sidebar */
+.emails__sidebar {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-height: 75vh;
+}
+
+.emails__search {
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.emails__list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.emails__list-skeleton {
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.emails__list-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  transition: all var(--transition-fast);
+}
+
+.emails__list-item:hover {
+  background: var(--bg-hover);
+}
+
+.emails__list-item--active {
+  background: rgba(139, 92, 246, 0.1) !important;
+  border-left: 3px solid var(--accent-violet);
+}
+
+.emails__list-item-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.emails__list-item-company {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.emails__list-item-name {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.emails__list-item-email {
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Stats Banner */
+.emails__stats {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-lg);
+  padding: var(--space-md) var(--space-xl);
+  margin-bottom: var(--space-lg);
+  animation: fadeInUp 0.3s ease;
+}
+
+.emails__stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.emails__stat-value {
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.emails__stat-value--generated { color: var(--accent-green); }
+.emails__stat-value--pending { color: var(--accent-amber); }
+.emails__stat-value--sent { color: var(--accent-blue); }
+
+.emails__stat-label {
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.emails__stat-divider {
+  width: 1px;
+  height: 36px;
+  background: var(--glass-border);
+}
+
+/* Badge on list items */
+.emails__list-item-badge {
+  flex-shrink: 0;
+  font-size: 14px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+}
+
+/* Preview */
+.emails__preview {
+  min-height: 400px;
+}
+
+@media (max-width: 900px) {
+  .emails__layout {
+    grid-template-columns: 1fr;
+  }
+  .emails__sidebar {
+    max-height: 300px;
+  }
+  .emails__stats {
+    flex-wrap: wrap;
+    gap: var(--space-md);
+  }
+}

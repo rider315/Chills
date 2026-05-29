@@ -1,0 +1,15 @@
+node_modules/
+.env
+.env.*
+*.env
+.env.local
+.env.development
+.env.test
+.env.production
+data/
+uploads/
+dist/
+client/dist/
+*.log
+.DS_Store
+Thumbs.db

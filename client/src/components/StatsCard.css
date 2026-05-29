@@ -1,0 +1,66 @@
+.stats-card {
+  padding: var(--space-lg);
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  min-width: 200px;
+  flex: 1;
+}
+
+.stats-card__icon-wrapper {
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-lg);
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}
+
+.stats-card__icon-wrapper[data-color="blue"] {
+  background: linear-gradient(135deg, rgba(59,130,246,0.2), rgba(59,130,246,0.05));
+  box-shadow: 0 0 20px rgba(59,130,246,0.15);
+}
+.stats-card__icon-wrapper[data-color="violet"] {
+  background: linear-gradient(135deg, rgba(139,92,246,0.2), rgba(139,92,246,0.05));
+  box-shadow: 0 0 20px rgba(139,92,246,0.15);
+}
+.stats-card__icon-wrapper[data-color="green"] {
+  background: linear-gradient(135deg, rgba(52,211,153,0.2), rgba(52,211,153,0.05));
+  box-shadow: 0 0 20px rgba(52,211,153,0.15);
+}
+.stats-card__icon-wrapper[data-color="magenta"] {
+  background: linear-gradient(135deg, rgba(217,70,239,0.2), rgba(217,70,239,0.05));
+  box-shadow: 0 0 20px rgba(217,70,239,0.15);
+}
+.stats-card__icon-wrapper[data-color="amber"] {
+  background: linear-gradient(135deg, rgba(251,191,36,0.2), rgba(251,191,36,0.05));
+  box-shadow: 0 0 20px rgba(251,191,36,0.15);
+}
+
+.stats-card__info {
+  display: flex;
+  flex-direction: column;
+}
+
+.stats-card__value {
+  font-size: var(--text-3xl);
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.stats-card__label {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+.stats-card--blue:hover  { box-shadow: var(--shadow-lg), var(--shadow-glow-blue); }
+.stats-card--violet:hover { box-shadow: var(--shadow-lg), var(--shadow-glow-violet); }
+.stats-card--green:hover  { box-shadow: var(--shadow-lg), var(--shadow-glow-green); }
+.stats-card--magenta:hover { box-shadow: var(--shadow-lg), var(--shadow-glow-magenta); }
+.stats-card--amber:hover  { box-shadow: var(--shadow-lg), var(--shadow-glow-amber); }
