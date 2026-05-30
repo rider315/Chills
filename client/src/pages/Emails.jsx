@@ -33,7 +33,10 @@ export default function Emails() {
   const [generating, setGenerating] = useState(false);
   const [generatingBulk, setGeneratingBulk] = useState(false);
   const [sendingBulk, setSendingBulk] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState({ active: false, type: '', current: 0, total: 0, company: '' });
   const [search, setSearch] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [selectedRecruiters, setSelectedRecruiters] = useState([]);
   const [emailMap, setEmailMap] = useState({});
   const [statusMap, setStatusMap] = useState({}); // recruiterId -> { hasEmail, status }
 
@@ -108,35 +111,119 @@ export default function Emails() {
     }
   };
 
-  const handleGenerateBulk = async () => {
-    setGeneratingBulk(true);
-    try {
-      const data = await post('/api/emails/generate-bulk');
-      toast.success(data?.message || 'Bulk generation complete!');
-      // Refresh statuses
-      setEmailMap({});
-      const statusData = await get('/api/emails/status');
-      setStatusMap(statusData?.statusMap || {});
-    } catch (err) {
-      toast.error(err.message || 'Bulk generation failed');
-    } finally {
-      setGeneratingBulk(false);
+  const handleGenerateBulk = async (useSelection = false) => {
+    let targets = [];
+    if (useSelection) {
+      targets = recruiters.filter(r => selectedRecruiters.includes(r.id || r._id) && !statusMap[r.id || r._id]?.hasEmail);
+    } else {
+      targets = recruiters.filter(r => !statusMap[r.id || r._id]?.hasEmail);
     }
+
+    if (targets.length === 0) {
+      return toast.info('All selected recruiters already have emails generated.');
+    }
+
+    setGeneratingBulk(true);
+    setBulkProgress({ active: true, type: 'generate', current: 0, total: targets.length, company: '' });
+    
+    let generated = 0;
+    let failed = 0;
+
+    for (let i = 0; i < targets.length; i++) {
+      const r = targets[i];
+      const rid = r.id || r._id;
+      setBulkProgress(prev => ({ ...prev, current: i + 1, company: r.company }));
+
+      try {
+        const data = await post(`/api/emails/generate/${rid}`);
+        const emailData = normalizeEmail(data);
+        
+        // Update local maps
+        setEmailMap(prev => ({ ...prev, [rid]: emailData }));
+        setStatusMap(prev => ({
+          ...prev,
+          [rid]: { hasEmail: true, status: 'draft', applicationId: emailData.applicationId },
+        }));
+        
+        generated++;
+      } catch (err) {
+        failed++;
+        toast.error(`Failed to generate for ${r.company}: ${err.message}`);
+      }
+    }
+
+    setGeneratingBulk(false);
+    setBulkProgress({ active: false, type: '', current: 0, total: 0, company: '' });
+    toast.success(`Bulk generation complete! Generated: ${generated}, Failed: ${failed}`);
   };
 
-  const handleSendBulk = async () => {
-    if (!window.confirm('Are you sure you want to send all draft emails? This might take a while depending on how many drafts you have.')) return;
+  const handleSendBulk = async (useSelection = false) => {
+    let targets = [];
+    if (useSelection) {
+      targets = recruiters.filter(r => selectedRecruiters.includes(r.id || r._id) && statusMap[r.id || r._id]?.hasEmail && statusMap[r.id || r._id]?.status !== 'sent');
+    } else {
+      targets = recruiters.filter(r => statusMap[r.id || r._id]?.hasEmail && statusMap[r.id || r._id]?.status !== 'sent');
+    }
+
+    if (targets.length === 0) {
+      return toast.info('No draft emails ready to send.');
+    }
+
+    const msg = useSelection 
+      ? `Are you sure you want to send emails to the ${targets.length} selected recruiters?`
+      : `Are you sure you want to send all ${targets.length} draft emails?`;
+    if (!window.confirm(msg)) return;
+
     setSendingBulk(true);
-    try {
-      const data = await post('/api/emails/send-bulk');
-      toast.success(data?.message || 'Bulk sending complete!');
-      // Refresh statuses
-      const statusData = await get('/api/emails/status');
-      setStatusMap(statusData?.statusMap || {});
-    } catch (err) {
-      toast.error(err.message || 'Bulk sending failed');
-    } finally {
-      setSendingBulk(false);
+    setBulkProgress({ active: true, type: 'send', current: 0, total: targets.length, company: '' });
+
+    let sent = 0;
+    let failed = 0;
+
+    for (let i = 0; i < targets.length; i++) {
+      const r = targets[i];
+      const rId = r.id || r._id;
+      const appId = statusMap[rId]?.applicationId;
+      setBulkProgress(prev => ({ ...prev, current: i + 1, company: r.company }));
+
+      if (!appId) continue;
+
+      try {
+        await post(`/api/emails/${appId}/send`);
+        sent++;
+        
+        setStatusMap((prev) => ({
+          ...prev,
+          [rId]: { ...prev[rId], status: 'sent' },
+        }));
+
+        // Delay between sends (2.5 seconds)
+        if (i < targets.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 2500));
+        }
+
+      } catch (err) {
+        failed++;
+        toast.error(`Failed to send to ${r.company}: ${err.message}`);
+      }
+    }
+
+    setSendingBulk(false);
+    setBulkProgress({ active: false, type: '', current: 0, total: 0, company: '' });
+    toast.success(`Bulk sending complete! Sent: ${sent}, Failed: ${failed}`);
+  };
+
+  const toggleSelection = (id) => {
+    setSelectedRecruiters((prev) =>
+      prev.includes(id) ? prev.filter((rId) => rId !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedRecruiters.length === filtered.length) {
+      setSelectedRecruiters([]);
+    } else {
+      setSelectedRecruiters(filtered.map((r) => r.id || r._id));
     }
   };
 
@@ -202,11 +289,25 @@ export default function Emails() {
 
   const filtered = recruiters.filter((r) => {
     const q = search.toLowerCase();
-    return (
+    const textMatch = (
       (r.company || '').toLowerCase().includes(q) ||
       (r.email || '').toLowerCase().includes(q) ||
       (r.recruiterName || r.name || '').toLowerCase().includes(q)
     );
+
+    const rid = r.id || r._id;
+    const s = statusMap[rid];
+    
+    let statusMatch = true;
+    if (filterStatus === 'pending') {
+      statusMatch = !s || (!s.hasEmail && s.status !== 'sent');
+    } else if (filterStatus === 'draft') {
+      statusMatch = s?.hasEmail && s?.status !== 'sent';
+    } else if (filterStatus === 'sent') {
+      statusMatch = s?.status === 'sent';
+    }
+
+    return textMatch && statusMatch;
   });
 
   // Stats
@@ -224,9 +325,19 @@ export default function Emails() {
           <p className="text-muted text-sm">Generate personalized cold emails for each recruiter.</p>
         </div>
         <div className="emails__header-actions" style={{ display: 'flex', gap: '0.75rem' }}>
+          {selectedRecruiters.length > 0 && (
+            <>
+              <button className="btn btn-ghost" onClick={() => handleSendBulk(true)} disabled={sendingBulk}>
+                📤 Send Selected ({selectedRecruiters.length})
+              </button>
+              <button className="btn btn-ghost" onClick={() => handleGenerateBulk(true)} disabled={generatingBulk}>
+                ⚡ Generate Selected ({selectedRecruiters.length})
+              </button>
+            </>
+          )}
           <button
             className="btn btn-secondary"
-            onClick={handleSendBulk}
+            onClick={() => handleSendBulk(false)}
             disabled={sendingBulk || generatedCount === 0}
           >
             {sendingBulk ? (
@@ -237,7 +348,7 @@ export default function Emails() {
           </button>
           <button
             className="btn btn-primary"
-            onClick={handleGenerateBulk}
+            onClick={() => handleGenerateBulk(false)}
             disabled={generatingBulk || recruiters.length === 0}
           >
             {generatingBulk ? (
@@ -274,14 +385,25 @@ export default function Emails() {
         </div>
       )}
 
-      {generatingBulk && (
+      {bulkProgress.active && (
         <div className="emails__bulk-progress glass-card p-md mb-lg">
-          <div className="flex items-center gap-sm mb-xs">
-            <span className="spinner spinner--sm" />
-            <span className="text-sm font-semibold">Generating emails... This uses your Gemini API quota.</span>
+          <div className="flex items-center justify-between mb-xs">
+            <div className="flex items-center gap-sm">
+              <span className="spinner spinner--sm" />
+              <span className="text-sm font-semibold">
+                {bulkProgress.type === 'generate' ? 'Generating email for ' : 'Sending email to '}
+                <span className="text-primary">{bulkProgress.company}</span>...
+              </span>
+            </div>
+            <span className="text-sm font-semibold">
+              {bulkProgress.current} / {bulkProgress.total}
+            </span>
           </div>
           <div className="progress-bar">
-            <div className="progress-bar__fill" style={{ width: '100%', animation: 'shimmer 1.5s infinite' }} />
+            <div 
+              className="progress-bar__fill" 
+              style={{ width: `${(bulkProgress.current / bulkProgress.total) * 100}%`, transition: 'width 0.3s ease' }} 
+            />
           </div>
         </div>
       )}
@@ -289,8 +411,8 @@ export default function Emails() {
       <div className="emails__layout">
         {/* Recruiter List */}
         <div className="emails__sidebar glass-card">
-          <div className="emails__search">
-            <div className="search-input-wrapper">
+          <div className="emails__search" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+            <div className="search-input-wrapper" style={{ flex: 1 }}>
               <span className="search-icon">🔍</span>
               <input
                 className="input"
@@ -299,6 +421,17 @@ export default function Emails() {
                 placeholder="Search recruiters..."
               />
             </div>
+            <select 
+              className="input" 
+              style={{ width: 'auto' }}
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+            >
+              <option value="all">All</option>
+              <option value="pending">Not Generated</option>
+              <option value="draft">Generated (Pending Send)</option>
+              <option value="sent">Sent</option>
+            </select>
           </div>
 
           <div className="emails__list">
@@ -315,43 +448,59 @@ export default function Emails() {
                 <div className="empty-state__desc">No recruiters found</div>
               </div>
             ) : (
-              filtered.map((r) => {
-                const rid = r.id || r._id;
-                const isSelected = (selectedRecruiter?.id || selectedRecruiter?._id) === rid;
-                const hasEmail = !!emailMap[rid] || statusMap[rid]?.hasEmail;
-                const recruiterStatus = statusMap[rid]?.status;
-                return (
-                  <div
-                    key={rid}
-                    className={`emails__list-item ${isSelected ? 'emails__list-item--active' : ''}`}
-                    onClick={() => handleSelectRecruiter(r)}
-                  >
-                    <div className="emails__list-item-info">
-                      <span className="emails__list-item-company">{r.company}</span>
-                      <span className="emails__list-item-name">{r.recruiterName || r.name || ''}</span>
-                      <span className="emails__list-item-email">{r.email}</span>
-                    </div>
-                    <span
-                      className={`emails__list-item-badge ${
-                        recruiterStatus === 'sent'
-                          ? 'emails__list-item-badge--sent'
-                          : hasEmail
-                          ? 'emails__list-item-badge--ready'
-                          : ''
-                      }`}
-                      title={
-                        recruiterStatus === 'sent'
-                          ? 'Sent'
-                          : hasEmail
-                          ? 'Email generated'
-                          : 'Not generated yet'
-                      }
+              <>
+                <div style={{ padding: '0.5rem 1rem', display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)' }}>
+                  <button className="btn btn-ghost btn-sm" onClick={toggleSelectAll}>
+                    {selectedRecruiters.length === filtered.length && filtered.length > 0 ? 'Deselect All' : 'Select All'}
+                  </button>
+                  {selectedRecruiters.length > 0 && <span className="text-sm font-semibold">{selectedRecruiters.length} selected</span>}
+                </div>
+                {filtered.map((r) => {
+                  const rid = r.id || r._id;
+                  const isPreviewSelected = (selectedRecruiter?.id || selectedRecruiter?._id) === rid;
+                  const isChecked = selectedRecruiters.includes(rid);
+                  const hasEmail = !!emailMap[rid] || statusMap[rid]?.hasEmail;
+                  const recruiterStatus = statusMap[rid]?.status;
+                  return (
+                    <div
+                      key={rid}
+                      className={`emails__list-item ${isPreviewSelected ? 'emails__list-item--active' : ''} ${isChecked ? 'emails__list-item--selected' : ''}`}
+                      onClick={() => handleSelectRecruiter(r)}
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}
                     >
-                      {recruiterStatus === 'sent' ? '📤' : hasEmail ? '✅' : '⬜'}
-                    </span>
-                  </div>
-                );
-              })
+                      <input 
+                        type="checkbox" 
+                        checked={isChecked}
+                        onChange={(e) => { e.stopPropagation(); toggleSelection(rid); }}
+                        style={{ cursor: 'pointer', width: '1.2rem', height: '1.2rem', flexShrink: 0 }}
+                      />
+                      <div className="emails__list-item-info" style={{ flex: 1 }}>
+                        <span className="emails__list-item-company">{r.company}</span>
+                        <span className="emails__list-item-name">{r.recruiterName || r.name || ''}</span>
+                        <span className="emails__list-item-email">{r.email}</span>
+                      </div>
+                      <span
+                        className={`emails__list-item-badge ${
+                          recruiterStatus === 'sent'
+                            ? 'emails__list-item-badge--sent'
+                            : hasEmail
+                            ? 'emails__list-item-badge--ready'
+                            : ''
+                        }`}
+                        title={
+                          recruiterStatus === 'sent'
+                            ? 'Sent'
+                            : hasEmail
+                            ? 'Email generated'
+                            : 'Not generated yet'
+                        }
+                      >
+                        {recruiterStatus === 'sent' ? '📤' : hasEmail ? '✅' : '⬜'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </>
             )}
           </div>
         </div>

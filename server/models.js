@@ -71,6 +71,7 @@ const settingsSchema = new mongoose.Schema({
   smtpPass: { type: String, default: '' },
   userName: { type: String, default: '' },
   userEmail: { type: String, default: '' },
+  mobileNumber: { type: String, default: '' },
   immediateJoiner: { type: Boolean, default: false },
   linkedinUrl: { type: String, default: '' },
   portfolioUrl: { type: String, default: '' },

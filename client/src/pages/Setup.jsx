@@ -26,6 +26,7 @@ export default function Setup() {
   const [manualForm, setManualForm] = useState({ email: '', company: '', recruiterName: '' });
   const [sheetsUrl, setSheetsUrl] = useState('');
   const [addingRecruiter, setAddingRecruiter] = useState(false);
+  const [selectedRecruiters, setSelectedRecruiters] = useState([]);
 
   useEffect(() => {
     fetchResume();
@@ -124,9 +125,53 @@ export default function Setup() {
     try {
       await del(`/api/recruiters/${id}`);
       setRecruiters((prev) => prev.filter((r) => (r.id || r._id) !== id));
+      setSelectedRecruiters((prev) => prev.filter(rId => rId !== id));
       toast.info('Recruiter removed');
     } catch (err) {
       toast.error(err.message || 'Failed to remove recruiter');
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedRecruiters.length === 0) return;
+    if (!window.confirm(`Are you sure you want to delete ${selectedRecruiters.length} recruiter(s)?`)) return;
+
+    try {
+      await post('/api/recruiters/bulk-delete', { ids: selectedRecruiters });
+      setRecruiters((prev) => prev.filter((r) => !selectedRecruiters.includes(r.id || r._id)));
+      setSelectedRecruiters([]);
+      toast.info(`Removed ${selectedRecruiters.length} recruiter(s)`);
+    } catch (err) {
+      toast.error(err.message || 'Failed to bulk delete recruiters');
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    if (recruiters.length === 0) return;
+    if (!window.confirm('Are you sure you want to delete ALL recruiters? This action cannot be undone.')) return;
+    
+    const allIds = recruiters.map(r => r.id || r._id);
+    try {
+      await post('/api/recruiters/bulk-delete', { ids: allIds });
+      setRecruiters([]);
+      setSelectedRecruiters([]);
+      toast.info('All recruiters removed');
+    } catch (err) {
+      toast.error(err.message || 'Failed to clear recruiters');
+    }
+  };
+
+  const toggleSelection = (id) => {
+    setSelectedRecruiters(prev => 
+      prev.includes(id) ? prev.filter(rId => rId !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedRecruiters.length === recruiters.length) {
+      setSelectedRecruiters([]);
+    } else {
+      setSelectedRecruiters(recruiters.map(r => r.id || r._id));
     }
   };
 
@@ -297,23 +342,52 @@ export default function Setup() {
             {/* Recruiter list */}
             {recruiters.length > 0 && (
               <div className="setup__recruiter-list mt-xl">
-                <h4 className="mb-sm">Added Recruiters ({recruiters.length})</h4>
-                <div className="setup__recruiter-items">
-                  {recruiters.map((r) => (
-                    <div key={r.id || r._id} className="setup__recruiter-item glass-card">
-                      <div className="setup__recruiter-info">
-                        <span className="font-semibold text-sm">{r.company}</span>
-                        <span className="text-xs text-muted">{r.recruiterName || r.name || ''}</span>
-                        <span className="text-xs text-muted">{r.email}</span>
-                      </div>
-                      <button
-                        className="btn btn-ghost btn-sm"
-                        onClick={() => handleDeleteRecruiter(r.id || r._id)}
-                      >
-                        🗑️
+                <div className="setup__recruiter-list-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <h4 style={{ margin: 0 }}>Added Recruiters ({recruiters.length})</h4>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                    {selectedRecruiters.length > 0 && (
+                      <span className="text-sm font-semibold" style={{ color: 'var(--primary)', marginRight: '0.5rem' }}>{selectedRecruiters.length} selected</span>
+                    )}
+                    <button className="btn btn-ghost btn-sm" onClick={toggleSelectAll}>
+                      {selectedRecruiters.length === recruiters.length ? 'Deselect All' : 'Select All'}
+                    </button>
+                    {selectedRecruiters.length > 0 && (
+                      <button className="btn btn-ghost btn-sm" onClick={handleBulkDelete} style={{ color: 'var(--danger)' }}>
+                        Delete Selected
                       </button>
-                    </div>
-                  ))}
+                    )}
+                    <button className="btn btn-ghost btn-sm" onClick={handleDeleteAll} style={{ color: 'var(--danger)' }}>
+                      Delete All
+                    </button>
+                  </div>
+                </div>
+                <div className="setup__recruiter-items">
+                  {recruiters.map((r) => {
+                    const rId = r.id || r._id;
+                    const isSelected = selectedRecruiters.includes(rId);
+                    return (
+                      <div key={rId} className={`setup__recruiter-item glass-card ${isSelected ? 'setup__recruiter-item--selected' : ''}`} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={isSelected}
+                          onChange={() => toggleSelection(rId)}
+                          style={{ cursor: 'pointer', width: '1.2rem', height: '1.2rem', flexShrink: 0 }}
+                        />
+                        <div className="setup__recruiter-info" onClick={() => toggleSelection(rId)} style={{ cursor: 'pointer', flex: 1 }}>
+                          <span className="font-semibold text-sm" style={{ display: 'block' }}>{r.company}</span>
+                          <span className="text-xs text-muted" style={{ display: 'block' }}>{r.recruiterName || r.name || ''}</span>
+                          <span className="text-xs text-muted" style={{ display: 'block' }}>{r.email}</span>
+                        </div>
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          onClick={(e) => { e.stopPropagation(); handleDeleteRecruiter(rId); }}
+                          title="Delete recruiter"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}

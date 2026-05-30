@@ -1,6 +1,6 @@
 const express = require('express');
 const { Application, Resume } = require('../models');
-const gemini = require('../services/gemini');
+const ai = require('../services/ai');
 
 const router = express.Router();
 
@@ -26,7 +26,7 @@ router.post('/:applicationId', async (req, res) => {
     const profile = resume ? resume.parsed || {} : {};
 
     // Analyze the reply with AI
-    const analysis = await gemini.analyzeReply(application.generatedEmail, replyText, profile);
+    const analysis = await ai.analyzeReply(application.generatedEmail, replyText, profile);
 
     // Build the reply record
     const reply = {

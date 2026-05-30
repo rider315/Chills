@@ -10,7 +10,7 @@
     "install:all": "npm install && cd client && npm install"
   },
   "dependencies": {
-    "@google/genai": "^1.0.0",
+    "openai": "^4.0.0",
     "concurrently": "^9.1.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",

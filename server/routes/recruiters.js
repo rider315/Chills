@@ -185,6 +185,30 @@ router.get('/', async (req, res) => {
 });
 
 /**
+ * POST /api/recruiters/bulk-delete
+ * Delete multiple recruiters by ID.
+ */
+router.post('/bulk-delete', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'No recruiter IDs provided.' });
+    }
+
+    const result = await Recruiter.deleteMany({ _id: { $in: ids } });
+    
+    // Cascade delete their applications (optional but good practice)
+    const { Application } = require('../models');
+    await Application.deleteMany({ recruiterId: { $in: ids } });
+
+    return res.status(200).json({ message: `Deleted ${result.deletedCount} recruiters.`, deletedCount: result.deletedCount });
+  } catch (error) {
+    console.error('Bulk delete error:', error);
+    return res.status(500).json({ error: `Failed to bulk delete recruiters: ${error.message}` });
+  }
+});
+
+/**
  * DELETE /api/recruiters/:id
  * Remove a recruiter by ID.
  */

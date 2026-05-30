@@ -4,7 +4,7 @@ const path = require('path');
 const config = require('../config');
 const { Resume } = require('../models');
 const { parsePDF } = require('../services/fileParser');
-const gemini = require('../services/gemini');
+const ai = require('../services/ai');
 
 const router = express.Router();
 
@@ -48,7 +48,7 @@ router.post('/upload', upload.single('resume'), async (req, res) => {
     }
 
     // Parse resume with AI
-    const parsed = await gemini.parseResume(text);
+    const parsed = await ai.parseResume(text);
 
     // Upsert resume in database (only keep one resume)
     let resume = await Resume.findOne();

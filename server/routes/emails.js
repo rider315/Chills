@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const { Resume, Recruiter, Application, Settings } = require('../models');
-const gemini = require('../services/gemini');
+const ai = require('../services/ai');
 const emailSender = require('../services/emailSender');
 const config = require('../config');
 
@@ -16,6 +16,7 @@ async function getProfileSettings() {
   return {
     linkedinUrl: settings.linkedinUrl || '',
     portfolioUrl: settings.portfolioUrl || '',
+    mobileNumber: settings.mobileNumber || '',
     otherLinks: (settings.otherLinks || []).filter((l) => l.url),
     immediateJoiner: settings.immediateJoiner || false,
   };
@@ -101,13 +102,13 @@ router.post('/generate/:recruiterId', async (req, res) => {
     const profileSettings = await getProfileSettings();
 
     // Step 1: Research company
-    const companyResearch = await gemini.researchCompany(recruiter.company || 'Unknown Company');
+    const companyResearch = await ai.researchCompany(recruiter.company || 'Unknown Company');
+    console.log('Company research done for:', recruiter.company);
 
-    // Step 2: Generate personalized email (with links and settings)
-    const generatedEmail = await gemini.generateEmail(resume.parsed, companyResearch, recruiter, profileSettings);
+    const generatedEmail = await ai.generateEmail(resume.parsed, companyResearch, recruiter, profileSettings);
+    console.log('Email generated for:', recruiter.email);
 
-    // Step 3: Suggest optimal send time
-    const sendTimeInfo = await gemini.suggestSendTime(recruiter.company, recruiter);
+    const sendTimeInfo = await ai.suggestSendTime(recruiter.company, recruiter);
 
     if (existingApp) {
       // Update existing application
@@ -163,11 +164,18 @@ router.post('/generate-bulk', async (req, res) => {
 
     const profileSettings = await getProfileSettings();
 
+    // Allow optional recruiterIds in body
+    const { recruiterIds } = req.body || {};
+    let targetRecruiters = await Recruiter.find();
+    if (Array.isArray(recruiterIds) && recruiterIds.length > 0) {
+      const idSet = new Set(recruiterIds);
+      targetRecruiters = targetRecruiters.filter((r) => idSet.has(r._id.toString()));
+    }
+
     // Find recruiters without applications
     const existingRecruiterIds = (await Application.find({}, 'recruiterId')).map((a) => a.recruiterId.toString());
     const existingSet = new Set(existingRecruiterIds);
-    const allRecruiters = await Recruiter.find();
-    const pendingRecruiters = allRecruiters.filter((r) => !existingSet.has(r._id.toString()));
+    const pendingRecruiters = targetRecruiters.filter((r) => !existingSet.has(r._id.toString()));
 
     if (pendingRecruiters.length === 0) {
       return res.status(200).json({
@@ -181,9 +189,9 @@ router.post('/generate-bulk', async (req, res) => {
 
     for (const recruiter of pendingRecruiters) {
       try {
-        const companyResearch = await gemini.researchCompany(recruiter.company || 'Unknown Company');
-        const generatedEmail = await gemini.generateEmail(resume.parsed, companyResearch, recruiter, profileSettings);
-        const sendTimeInfo = await gemini.suggestSendTime(recruiter.company, recruiter);
+        const companyResearch = await ai.researchCompany(recruiter.company || 'Unknown Company');
+        const generatedEmail = await ai.generateEmail(resume.parsed, companyResearch, recruiter, profileSettings);
+        const sendTimeInfo = await ai.suggestSendTime(recruiter.company, recruiter);
 
         await Application.create({
           recruiterId: recruiter._id,
@@ -393,8 +401,14 @@ router.post('/send-bulk', async (req, res) => {
     const transport = emailSender.createTransport(smtpConfig);
     const fromAddress = `${smtpConfig.user}`;
     
+    const { recruiterIds } = req.body || {};
+    
     // Find all draft applications with a generated email
-    const applications = await Application.find({ status: 'draft' });
+    let applications = await Application.find({ status: 'draft' });
+    if (Array.isArray(recruiterIds) && recruiterIds.length > 0) {
+      const idSet = new Set(recruiterIds);
+      applications = applications.filter(app => idSet.has(app.recruiterId.toString()));
+    }
     const readyToSend = applications.filter(app => app.generatedEmail && app.generatedEmail.subject);
 
     if (readyToSend.length === 0) {

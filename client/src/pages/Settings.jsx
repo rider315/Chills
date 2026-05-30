@@ -8,6 +8,7 @@ export default function Settings() {
   const [settings, setSettings] = useState({
     userName: '',
     userEmail: '',
+    mobileNumber: '',
     smtpHost: 'smtp.gmail.com',
     smtpPort: 587,
     smtpUser: '',
@@ -33,6 +34,7 @@ export default function Settings() {
       setSettings({
         userName: data.userName || '',
         userEmail: data.userEmail || '',
+        mobileNumber: data.mobileNumber || '',
         smtpHost: data.smtpHost || 'smtp.gmail.com',
         smtpPort: data.smtpPort || 587,
         smtpUser: data.smtpUser || '',
@@ -254,6 +256,16 @@ export default function Settings() {
                 value={settings.userEmail}
                 onChange={(e) => setSettings({ ...settings, userEmail: e.target.value })}
                 placeholder="john@example.com"
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Mobile Number</label>
+              <input
+                type="tel"
+                className="form-input"
+                value={settings.mobileNumber}
+                onChange={(e) => setSettings({ ...settings, mobileNumber: e.target.value })}
+                placeholder="+1 (555) 000-0000"
               />
             </div>
             <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>

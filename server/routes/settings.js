@@ -20,9 +20,9 @@ router.get('/', async (req, res) => {
       response.smtpPass = '••••••••';
     }
 
-    // Include whether Gemini API key is configured
+    // Include whether OpenRouter API key is configured
     const config = require('../config');
-    response.geminiApiKeyConfigured = !!config.geminiApiKey;
+    response.openRouterApiKeyConfigured = !!config.openRouterApiKey;
 
     return res.status(200).json(response);
   } catch (error) {
@@ -39,7 +39,7 @@ router.put('/', async (req, res) => {
   try {
     const settings = await Settings.getSingleton();
     const updates = req.body;
-    const allowedFields = ['smtpHost', 'smtpPort', 'smtpUser', 'smtpPass', 'userName', 'userEmail', 'linkedinUrl', 'portfolioUrl', 'immediateJoiner'];
+    const allowedFields = ['smtpHost', 'smtpPort', 'smtpUser', 'smtpPass', 'userName', 'userEmail', 'mobileNumber', 'linkedinUrl', 'portfolioUrl', 'immediateJoiner'];
 
     for (const field of allowedFields) {
       if (updates[field] !== undefined) {

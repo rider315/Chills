@@ -1,28 +1,52 @@
 const config = require('../config');
+const OpenAI = require('openai');
 
-let genaiModule = null;
+let openaiClient = null;
 
-/**
- * Lazily load the @google/genai ESM module and return a GoogleGenAI client.
- */
-async function getClient() {
-  if (!genaiModule) {
-    genaiModule = await import('@google/genai');
+function getClient() {
+  if (!openaiClient) {
+    const apiKey = config.openRouterApiKey || process.env.OPENROUTER_API_KEY;
+    if (!apiKey) {
+      throw new Error('OPENROUTER_API_KEY is not configured. Set it in Settings or in the .env file.');
+    }
+    openaiClient = new OpenAI({
+      baseURL: 'https://openrouter.ai/api/v1',
+      apiKey: apiKey,
+    });
   }
-  const apiKey = config.geminiApiKey || process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY is not configured. Set it in Settings or in the .env file.');
-  }
-  return new genaiModule.GoogleGenAI({ apiKey });
+  return openaiClient;
 }
 
-const MODEL = 'gemini-2.5-flash';
+const MODEL = 'openrouter/free'; // Uses OpenRouter's auto-fallback across free models to avoid rate limits
+
+async function generateContent(prompt, retries = 2) {
+  const ai = getClient();
+  
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const response = await ai.chat.completions.create({
+        model: MODEL,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 1500,
+      });
+      
+      const content = response.choices?.[0]?.message?.content;
+      if (content) {
+        return content;
+      }
+      console.warn(`Attempt ${i + 1}: Received null/empty content from OpenRouter`);
+    } catch (err) {
+      console.error(`Attempt ${i + 1} failed:`, err.message);
+      if (i === retries) throw err;
+    }
+  }
+  return ""; // Ensure a string is always returned
+}
 
 /**
  * Parse resume text into a structured profile object.
  */
 async function parseResume(text) {
-  const ai = await getClient();
   const prompt = `You are a resume parser. Extract the following fields from the resume text below and return ONLY valid JSON (no markdown fences, no extra text).
 
 Required JSON structure:
@@ -48,22 +72,17 @@ Resume text:
 ${text}
 """`;
 
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    contents: prompt,
-  });
-
-  const raw = response.text.trim();
-  // Strip markdown code fences if present
-  const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+  const raw = await generateContent(prompt);
+  const safeRaw = raw || "";
+  const cleaned = safeRaw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+  if (!safeRaw) return { name: "", email: "", phone: "", skills: [], experience: [], education: [], summary: "", strengths: [] };
   return JSON.parse(cleaned);
 }
 
 /**
- * Research a company using Gemini with Google Search grounding.
+ * Research a company using AI.
  */
 async function researchCompany(companyName) {
-  const ai = await getClient();
   const prompt = `Research the company "${companyName}" thoroughly. Provide the following information as valid JSON only (no markdown fences):
 
 {
@@ -83,16 +102,9 @@ async function researchCompany(companyName) {
 
 Focus on current, up-to-date information relevant to a job applicant. If certain information is not available, use empty strings or arrays.`;
 
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    contents: prompt,
-    config: {
-      tools: [{ googleSearch: {} }],
-    },
-  });
-
-  const raw = response.text.trim();
-  const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+  const raw = await generateContent(prompt);
+  const safeRaw = raw || "";
+  const cleaned = safeRaw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
   try {
     return JSON.parse(cleaned);
   } catch {
@@ -102,17 +114,12 @@ Focus on current, up-to-date information relevant to a job applicant. If certain
 
 /**
  * Generate a personalized cold email for a recruiter.
- * @param {object} profile - Parsed resume profile
- * @param {object} companyResearch - Company research data
- * @param {object} recruiterInfo - Recruiter details
- * @param {object} profileSettings - { linkedinUrl, portfolioUrl, otherLinks, immediateJoiner }
  */
 async function generateEmail(profile, companyResearch, recruiterInfo, profileSettings = {}) {
-  const ai = await getClient();
-
   // Build a links section for the prompt
   let linksBlock = '';
   const links = [];
+  if (profileSettings.mobileNumber) links.push(`Mobile: ${profileSettings.mobileNumber}`);
   if (profileSettings.linkedinUrl) links.push(`LinkedIn: ${profileSettings.linkedinUrl}`);
   if (profileSettings.portfolioUrl) links.push(`Portfolio: ${profileSettings.portfolioUrl}`);
   if (profileSettings.otherLinks && profileSettings.otherLinks.length > 0) {
@@ -164,7 +171,8 @@ STRUCTURE (keep TOTAL body under 120 words):
 
 4. SIGNATURE:
    Name
-   [Print the exact raw URLs provided below on new lines. DO NOT embed the links over text. Do not use markdown like [Link](url). Format EXACTLY like:
+   [Print the exact raw contact details and URLs provided below on new lines. DO NOT embed the links over text. Do not use markdown like [Link](url). Format EXACTLY like:
+   Mobile: +1234567890
    LinkedIn: https://linkedin.com/...
    Portfolio: https://...]
 
@@ -182,13 +190,10 @@ Return ONLY valid JSON (no markdown fences):
   "body": ""
 }`;
 
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    contents: prompt,
-  });
-
-  const raw = response.text.trim();
-  const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+  const raw = await generateContent(prompt);
+  const safeRaw = raw || "";
+  const cleaned = safeRaw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+  if (!safeRaw) return { subject: "Job Application", body: "Please find my resume attached." };
   return JSON.parse(cleaned);
 }
 
@@ -196,7 +201,6 @@ Return ONLY valid JSON (no markdown fences):
  * Suggest the optimal time to send an email to a recruiter.
  */
 async function suggestSendTime(companyName, recruiterInfo) {
-  const ai = await getClient();
   const prompt = `Suggest the best time to send a cold outreach email to a recruiter at "${companyName}".
 
 Recruiter info:
@@ -214,13 +218,9 @@ Return ONLY valid JSON (no markdown fences):
   "reason": "Brief explanation of why this time is optimal"
 }`;
 
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    contents: prompt,
-  });
-
-  const raw = response.text.trim();
-  const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+  const raw = await generateContent(prompt);
+  const safeRaw = raw || "";
+  const cleaned = safeRaw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
   try {
     return JSON.parse(cleaned);
   } catch {
@@ -232,7 +232,6 @@ Return ONLY valid JSON (no markdown fences):
  * Analyze a recruiter's reply and suggest a response.
  */
 async function analyzeReply(originalEmail, replyText, profile) {
-  const ai = await getClient();
   const prompt = `You are a career coach analyzing a recruiter's reply to a job applicant's cold email.
 
 ORIGINAL EMAIL SENT BY APPLICANT:
@@ -255,13 +254,9 @@ Return ONLY valid JSON (no markdown fences):
   "suggestedReply": "A complete suggested reply email the applicant can send back"
 }`;
 
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    contents: prompt,
-  });
-
-  const raw = response.text.trim();
-  const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+  const raw = await generateContent(prompt);
+  const safeRaw = raw || "";
+  const cleaned = safeRaw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
   return JSON.parse(cleaned);
 }
 
