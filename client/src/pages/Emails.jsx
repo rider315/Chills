@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { get, post, put } from '../utils/api';
 import { useToast } from '../components/Toast';
 import EmailPreview from '../components/EmailPreview';
-import './Emails.css';
 
 /**
  * Flatten an application object into the shape EmailPreview expects.
@@ -39,6 +38,7 @@ export default function Emails() {
   const [selectedRecruiters, setSelectedRecruiters] = useState([]);
   const [emailMap, setEmailMap] = useState({});
   const [statusMap, setStatusMap] = useState({}); // recruiterId -> { hasEmail, status }
+  const [usageStats, setUsageStats] = useState(null); // Freemium limits
 
   useEffect(() => {
     fetchData();
@@ -47,16 +47,28 @@ export default function Emails() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [recruiterData, statusData] = await Promise.all([
+      const [recruiterData, statusData, usageData] = await Promise.all([
         get('/api/recruiters'),
         get('/api/emails/status'),
+        get('/api/usage/status')
       ]);
       setRecruiters(recruiterData?.recruiters || recruiterData || []);
       setStatusMap(statusData?.statusMap || {});
+      setUsageStats(usageData || null);
     } catch (err) {
       toast.error('Failed to load data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUpgrade = async () => {
+    try {
+      const res = await post('/api/usage/upgrade');
+      toast.success(res.message || 'Upgraded successfully!');
+      fetchData(); // refresh stats
+    } catch (err) {
+      toast.error('Upgrade failed: ' + err.message);
     }
   };
 
@@ -211,6 +223,7 @@ export default function Emails() {
     setSendingBulk(false);
     setBulkProgress({ active: false, type: '', current: 0, total: 0, company: '' });
     toast.success(`Bulk sending complete! Sent: ${sent}, Failed: ${failed}`);
+    fetchData(); // Refresh usage stats
   };
 
   const toggleSelection = (id) => {
@@ -260,6 +273,7 @@ export default function Emails() {
           [rid]: { ...prev[rid], status: 'sent' },
         }));
       }
+      fetchData(); // Refresh usage stats
     } catch (err) {
       toast.error(err.message || 'Failed to send email');
     }
@@ -315,198 +329,199 @@ export default function Emails() {
   const generatedCount = Object.values(statusMap).filter((s) => s.hasEmail).length;
   const sentCount = Object.values(statusMap).filter((s) => s.status === 'sent').length;
 
+  const outOfQuota = usageStats && !usageStats.isPremium && usageStats.emailsSent >= usageStats.limit;
+
   return (
-    <div className="page-enter emails">
-      <div className="emails__header">
+    <div className="flex flex-col gap-8 animate-fadeIn h-full">
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 border-b-4 border-border pb-6">
         <div>
-          <h1 className="emails__title">
-            <span className="text-gradient">Emails</span> ✉️
+          <h1 className="text-4xl md:text-5xl font-black mb-2">
+            <span className="bg-neo-blue text-bw px-2 inline-block -rotate-1 border-2 border-border shadow-neosm">Emails</span> ✉️
           </h1>
-          <p className="text-muted text-sm">Generate personalized cold emails for each recruiter.</p>
+          <p className="text-xl font-bold opacity-80 mt-4">Generate personalized cold emails for each recruiter.</p>
         </div>
-        <div className="emails__header-actions" style={{ display: 'flex', gap: '0.75rem' }}>
+        <div className="flex flex-wrap gap-3">
           {selectedRecruiters.length > 0 && (
             <>
-              <button className="btn btn-ghost" onClick={() => handleSendBulk(true)} disabled={sendingBulk}>
+              <button className="btn-neo bg-neo-green text-text px-4 py-2" onClick={() => handleSendBulk(true)} disabled={sendingBulk || outOfQuota}>
                 📤 Send Selected ({selectedRecruiters.length})
               </button>
-              <button className="btn btn-ghost" onClick={() => handleGenerateBulk(true)} disabled={generatingBulk}>
+              <button className="btn-neo bg-neo-yellow text-text px-4 py-2" onClick={() => handleGenerateBulk(true)} disabled={generatingBulk}>
                 ⚡ Generate Selected ({selectedRecruiters.length})
               </button>
             </>
           )}
           <button
-            className="btn btn-secondary"
+            className="btn-neo btn-neo-white"
             onClick={() => handleSendBulk(false)}
-            disabled={sendingBulk || generatedCount === 0}
+            disabled={sendingBulk || generatedCount === 0 || outOfQuota}
           >
-            {sendingBulk ? (
-              <><span className="spinner spinner--sm" /> Sending...</>
-            ) : (
-              '📤 Send All'
-            )}
+            {sendingBulk ? 'Sending...' : '📤 Send All'}
           </button>
           <button
-            className="btn btn-primary"
+            className="btn-neo btn-neo-blue"
             onClick={() => handleGenerateBulk(false)}
             disabled={generatingBulk || recruiters.length === 0}
           >
-            {generatingBulk ? (
-              <><span className="spinner spinner--sm" /> Generating...</>
-            ) : (
-              '⚡ Generate All'
-            )}
+            {generatingBulk ? 'Generating...' : '⚡ Generate All'}
           </button>
         </div>
       </div>
 
       {/* Generation Stats Banner */}
       {totalRecruiters > 0 && (
-        <div className="emails__stats glass-card">
-          <div className="emails__stat">
-            <span className="emails__stat-value">{totalRecruiters}</span>
-            <span className="emails__stat-label">Recruiters</span>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="card-neo bg-bw flex flex-col items-center justify-center p-4">
+            <span className="text-3xl font-black">{totalRecruiters}</span>
+            <span className="text-sm font-bold uppercase tracking-wider opacity-70">Recruiters</span>
           </div>
-          <div className="emails__stat-divider" />
-          <div className="emails__stat">
-            <span className="emails__stat-value emails__stat-value--generated">{generatedCount}</span>
-            <span className="emails__stat-label">Generated</span>
+          <div className="card-neo bg-neo-yellow flex flex-col items-center justify-center p-4">
+            <span className="text-3xl font-black">{generatedCount}</span>
+            <span className="text-sm font-bold uppercase tracking-wider opacity-70">Generated</span>
           </div>
-          <div className="emails__stat-divider" />
-          <div className="emails__stat">
-            <span className="emails__stat-value emails__stat-value--pending">{totalRecruiters - generatedCount}</span>
-            <span className="emails__stat-label">Pending</span>
+          <div className="card-neo bg-neo-red text-bw flex flex-col items-center justify-center p-4">
+            <span className="text-3xl font-black">{totalRecruiters - generatedCount}</span>
+            <span className="text-sm font-bold uppercase tracking-wider opacity-70 text-white">Pending</span>
           </div>
-          <div className="emails__stat-divider" />
-          <div className="emails__stat">
-            <span className="emails__stat-value emails__stat-value--sent">{sentCount}</span>
-            <span className="emails__stat-label">Sent</span>
+          <div className="card-neo bg-neo-green flex flex-col items-center justify-center p-4">
+            <span className="text-3xl font-black">{sentCount}</span>
+            <span className="text-sm font-bold uppercase tracking-wider opacity-70">Sent</span>
           </div>
         </div>
       )}
 
+      {/* Freemium Banner */}
+      {usageStats && (
+        <div className={`card-neo p-4 flex flex-col md:flex-row items-center justify-between gap-4 border-4 ${usageStats.isPremium ? 'bg-neo-green text-bw' : outOfQuota ? 'bg-neo-red text-bw' : 'bg-neo-yellow'}`}>
+          <div className="flex items-center gap-4">
+            <span className="text-4xl">{usageStats.isPremium ? '👑' : outOfQuota ? '🛑' : '🚀'}</span>
+            <div>
+              <h3 className="text-xl font-black uppercase tracking-wider">
+                {usageStats.isPremium ? 'Premium Active' : 'Free Tier'}
+              </h3>
+              <p className="font-bold opacity-90">
+                {usageStats.isPremium 
+                  ? 'You have unlimited email sending capabilities.' 
+                  : `You have sent ${usageStats.emailsSent} out of ${usageStats.limit} free emails.`}
+              </p>
+            </div>
+          </div>
+          {!usageStats.isPremium && (
+            <button className="btn-neo bg-bw text-text w-full md:w-auto" onClick={handleUpgrade}>
+              💎 Upgrade to Premium
+            </button>
+          )}
+        </div>
+      )}
+
       {bulkProgress.active && (
-        <div className="emails__bulk-progress glass-card p-md mb-lg">
-          <div className="flex items-center justify-between mb-xs">
-            <div className="flex items-center gap-sm">
-              <span className="spinner spinner--sm" />
-              <span className="text-sm font-semibold">
+        <div className="card-neo bg-neo-purple text-bw p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <span className="text-lg font-bold">
                 {bulkProgress.type === 'generate' ? 'Generating email for ' : 'Sending email to '}
-                <span className="text-primary">{bulkProgress.company}</span>...
+                <span className="text-neo-yellow px-1">{bulkProgress.company}</span>...
               </span>
             </div>
-            <span className="text-sm font-semibold">
+            <span className="text-lg font-black">
               {bulkProgress.current} / {bulkProgress.total}
             </span>
           </div>
-          <div className="progress-bar">
+          <div className="h-4 bg-bw border-2 border-border rounded-full overflow-hidden">
             <div 
-              className="progress-bar__fill" 
-              style={{ width: `${(bulkProgress.current / bulkProgress.total) * 100}%`, transition: 'width 0.3s ease' }} 
+              className="h-full bg-neo-yellow transition-all duration-300" 
+              style={{ width: `${(bulkProgress.current / bulkProgress.total) * 100}%` }} 
             />
           </div>
         </div>
       )}
 
-      <div className="emails__layout">
+      <div className="flex flex-col lg:flex-row gap-8 h-full min-h-[600px]">
         {/* Recruiter List */}
-        <div className="emails__sidebar glass-card">
-          <div className="emails__search" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-            <div className="search-input-wrapper" style={{ flex: 1 }}>
-              <span className="search-icon">🔍</span>
+        <div className="w-full lg:w-1/3 flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="relative flex-1">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2">🔍</span>
               <input
-                className="input"
+                className="input-neo pl-10 w-full"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search recruiters..."
               />
             </div>
             <select 
-              className="input" 
-              style={{ width: 'auto' }}
+              className="input-neo w-full sm:w-auto font-bold cursor-pointer"
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
             >
               <option value="all">All</option>
               <option value="pending">Not Generated</option>
-              <option value="draft">Generated (Pending Send)</option>
+              <option value="draft">Generated (Draft)</option>
               <option value="sent">Sent</option>
             </select>
           </div>
 
-          <div className="emails__list">
+          <div className="card-neo flex-1 overflow-y-auto max-h-[800px] bg-bw p-0 flex flex-col border-4">
             {loading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="emails__list-skeleton">
-                  <div className="skeleton skeleton-text" style={{ width: '70%' }} />
-                  <div className="skeleton skeleton-text" style={{ width: '50%' }} />
-                </div>
-              ))
+              <div className="p-4 flex flex-col gap-4">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="animate-pulse flex flex-col gap-2">
+                    <div className="h-6 bg-gray-200 rounded w-3/4 border-2 border-border" />
+                    <div className="h-4 bg-gray-200 rounded w-1/2 border-2 border-border" />
+                  </div>
+                ))}
+              </div>
             ) : filtered.length === 0 ? (
-              <div className="empty-state p-lg">
-                <div className="empty-state__icon">👥</div>
-                <div className="empty-state__desc">No recruiters found</div>
+              <div className="flex flex-col items-center justify-center p-10 text-center opacity-70">
+                <div className="text-4xl mb-4">👥</div>
+                <div className="font-bold text-lg uppercase">No recruiters found</div>
               </div>
             ) : (
               <>
-                <div style={{ padding: '0.5rem 1rem', display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)' }}>
-                  <button className="btn btn-ghost btn-sm" onClick={toggleSelectAll}>
+                <div className="flex items-center justify-between p-3 border-b-4 border-border bg-gray-50">
+                  <button className="font-bold text-sm hover:underline" onClick={toggleSelectAll}>
                     {selectedRecruiters.length === filtered.length && filtered.length > 0 ? 'Deselect All' : 'Select All'}
                   </button>
-                  {selectedRecruiters.length > 0 && <span className="text-sm font-semibold">{selectedRecruiters.length} selected</span>}
+                  {selectedRecruiters.length > 0 && <span className="text-xs font-black bg-neo-yellow px-2 py-1 rounded border-2 border-border">{selectedRecruiters.length} selected</span>}
                 </div>
-                {filtered.map((r) => {
-                  const rid = r.id || r._id;
-                  const isPreviewSelected = (selectedRecruiter?.id || selectedRecruiter?._id) === rid;
-                  const isChecked = selectedRecruiters.includes(rid);
-                  const hasEmail = !!emailMap[rid] || statusMap[rid]?.hasEmail;
-                  const recruiterStatus = statusMap[rid]?.status;
-                  return (
-                    <div
-                      key={rid}
-                      className={`emails__list-item ${isPreviewSelected ? 'emails__list-item--active' : ''} ${isChecked ? 'emails__list-item--selected' : ''}`}
-                      onClick={() => handleSelectRecruiter(r)}
-                      style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}
-                    >
-                      <input 
-                        type="checkbox" 
-                        checked={isChecked}
-                        onChange={(e) => { e.stopPropagation(); toggleSelection(rid); }}
-                        style={{ cursor: 'pointer', width: '1.2rem', height: '1.2rem', flexShrink: 0 }}
-                      />
-                      <div className="emails__list-item-info" style={{ flex: 1 }}>
-                        <span className="emails__list-item-company">{r.company}</span>
-                        <span className="emails__list-item-name">{r.recruiterName || r.name || ''}</span>
-                        <span className="emails__list-item-email">{r.email}</span>
-                      </div>
-                      <span
-                        className={`emails__list-item-badge ${
-                          recruiterStatus === 'sent'
-                            ? 'emails__list-item-badge--sent'
-                            : hasEmail
-                            ? 'emails__list-item-badge--ready'
-                            : ''
-                        }`}
-                        title={
-                          recruiterStatus === 'sent'
-                            ? 'Sent'
-                            : hasEmail
-                            ? 'Email generated'
-                            : 'Not generated yet'
-                        }
+                <div className="flex flex-col divide-y-4 divide-border">
+                  {filtered.map((r) => {
+                    const rid = r.id || r._id;
+                    const isPreviewSelected = (selectedRecruiter?.id || selectedRecruiter?._id) === rid;
+                    const isChecked = selectedRecruiters.includes(rid);
+                    const hasEmail = !!emailMap[rid] || statusMap[rid]?.hasEmail;
+                    const recruiterStatus = statusMap[rid]?.status;
+                    return (
+                      <div
+                        key={rid}
+                        className={`flex items-start gap-3 p-4 cursor-pointer transition-colors ${isPreviewSelected ? 'bg-neo-blue text-bw' : 'hover:bg-gray-100'} ${isChecked && !isPreviewSelected ? 'bg-blue-50' : ''}`}
+                        onClick={() => handleSelectRecruiter(r)}
                       >
-                        {recruiterStatus === 'sent' ? '📤' : hasEmail ? '✅' : '⬜'}
-                      </span>
-                    </div>
-                  );
-                })}
+                        <input 
+                          type="checkbox" 
+                          checked={isChecked}
+                          onChange={(e) => { e.stopPropagation(); toggleSelection(rid); }}
+                          className="mt-1 w-5 h-5 cursor-pointer accent-neo-yellow border-2 border-border rounded-sm flex-shrink-0"
+                        />
+                        <div className="flex-1 flex flex-col min-w-0">
+                          <span className="font-black text-lg truncate">{r.company}</span>
+                          <span className={`text-sm font-bold truncate ${isPreviewSelected ? 'opacity-90' : 'opacity-70'}`}>{r.recruiterName || r.name || 'No Name'}</span>
+                          <span className={`text-xs truncate mt-1 ${isPreviewSelected ? 'opacity-80' : 'opacity-60'}`}>{r.email}</span>
+                        </div>
+                        <div className="flex-shrink-0 text-xl" title={recruiterStatus === 'sent' ? 'Sent' : hasEmail ? 'Email generated' : 'Not generated yet'}>
+                          {recruiterStatus === 'sent' ? '📤' : hasEmail ? '✅' : '⬜'}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </>
             )}
           </div>
         </div>
 
         {/* Email Preview */}
-        <div className="emails__preview">
+        <div className="w-full lg:w-2/3">
           <EmailPreview
             email={email}
             recruiter={selectedRecruiter}
@@ -515,6 +530,8 @@ export default function Emails() {
             onCopy={handleCopy}
             onRegenerate={handleGenerate}
             onSave={handleSave}
+            outOfQuota={outOfQuota}
+            onUpgrade={handleUpgrade}
           />
         </div>
       </div>

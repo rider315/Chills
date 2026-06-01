@@ -16,13 +16,13 @@ router.post('/:applicationId', async (req, res) => {
       return res.status(400).json({ error: 'Reply text is required.' });
     }
 
-    const application = await Application.findById(req.params.applicationId);
+    const application = await Application.findOne({ _id: req.params.applicationId, userId: req.user._id });
     if (!application) {
       return res.status(404).json({ error: 'Application not found.' });
     }
 
     // Get resume profile for context
-    const resume = await Resume.findOne();
+    const resume = await Resume.findOne({ userId: req.user._id });
     const profile = resume ? resume.parsed || {} : {};
 
     // Analyze the reply with AI
@@ -73,7 +73,7 @@ router.post('/:applicationId', async (req, res) => {
  */
 router.get('/:applicationId', async (req, res) => {
   try {
-    const application = await Application.findById(req.params.applicationId);
+    const application = await Application.findOne({ _id: req.params.applicationId, userId: req.user._id });
     if (!application) {
       return res.status(404).json({ error: 'Application not found.' });
     }

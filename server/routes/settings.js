@@ -12,7 +12,7 @@ const router = express.Router();
  */
 router.get('/', async (req, res) => {
   try {
-    const settings = await Settings.getSingleton();
+    const settings = await Settings.getForUser(req.user._id);
     const response = settings.toObject();
 
     // Mask SMTP password
@@ -37,12 +37,16 @@ router.get('/', async (req, res) => {
  */
 router.put('/', async (req, res) => {
   try {
-    const settings = await Settings.getSingleton();
+    const settings = await Settings.getForUser(req.user._id);
     const updates = req.body;
     const allowedFields = ['smtpHost', 'smtpPort', 'smtpUser', 'smtpPass', 'userName', 'userEmail', 'mobileNumber', 'linkedinUrl', 'portfolioUrl', 'immediateJoiner'];
 
     for (const field of allowedFields) {
       if (updates[field] !== undefined) {
+        // Prevent overwriting the real password with the masked version
+        if (field === 'smtpPass' && updates[field] === '••••••••') {
+          continue;
+        }
         settings[field] = updates[field];
       }
     }

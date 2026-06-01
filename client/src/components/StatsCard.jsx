@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useRef } from 'react';
-import './StatsCard.css';
 
 export default function StatsCard({ value, label, icon, color = 'violet' }) {
   const [displayValue, setDisplayValue] = useState(0);
@@ -21,7 +20,6 @@ export default function StatsCard({ value, label, icon, color = 'violet' }) {
 
     const timer = setInterval(() => {
       step++;
-      // Ease-out
       const progress = step / steps;
       const eased = 1 - Math.pow(1 - progress, 3);
       current = Math.round(target * eased);
@@ -36,14 +34,24 @@ export default function StatsCard({ value, label, icon, color = 'violet' }) {
     return () => clearInterval(timer);
   }, [value]);
 
+  const colorMap = {
+    violet: 'bg-neo-purple text-bw',
+    blue: 'bg-neo-blue text-bw',
+    magenta: 'bg-neo-red text-bw',
+    green: 'bg-neo-green text-text',
+    yellow: 'bg-neo-yellow text-text',
+    default: 'bg-bw text-text',
+  };
+  const bgClass = colorMap[color] || colorMap.default;
+
   return (
-    <div className={`stats-card glass-card glass-card--interactive stats-card--${color}`} ref={ref}>
-      <div className="stats-card__icon-wrapper" data-color={color}>
-        <span className="stats-card__icon">{icon}</span>
+    <div className={`card-neo flex items-center gap-4 hover:-translate-x-1 hover:-translate-y-1 hover:shadow-neohover cursor-pointer transition-all ${bgClass}`} ref={ref}>
+      <div className="flex flex-shrink-0 items-center justify-center w-14 h-14 rounded-full border-4 border-border bg-bw text-text text-2xl shadow-neosm">
+        {icon}
       </div>
-      <div className="stats-card__info">
-        <div className="stats-card__value">{displayValue}</div>
-        <div className="stats-card__label">{label}</div>
+      <div className="flex flex-col">
+        <div className="text-4xl font-black leading-none mb-1">{displayValue}</div>
+        <div className="text-xs font-bold uppercase tracking-wider opacity-90">{label}</div>
       </div>
     </div>
   );

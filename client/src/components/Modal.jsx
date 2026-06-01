@@ -1,5 +1,4 @@
 import React, { useEffect, useRef } from 'react';
-import './Modal.css';
 
 export default function Modal({ isOpen, onClose, title, children, footer }) {
   const overlayRef = useRef(null);
@@ -28,14 +27,14 @@ export default function Modal({ isOpen, onClose, title, children, footer }) {
   };
 
   return (
-    <div className="modal-overlay" ref={overlayRef} onClick={handleOverlayClick}>
-      <div className="modal glass-card">
-        <div className="modal__header">
-          <h3 className="modal__title">{title}</h3>
-          <button className="modal__close" onClick={onClose}>✕</button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn" ref={overlayRef} onClick={handleOverlayClick}>
+      <div className="card-neo w-full max-w-lg max-h-[90vh] bg-bw border-4 flex flex-col p-0 shadow-neolg overflow-hidden animate-slideUp">
+        <div className="flex items-center justify-between p-4 border-b-4 border-border bg-neo-yellow">
+          <h3 className="text-xl font-black">{title}</h3>
+          <button className="w-8 h-8 flex items-center justify-center font-black text-xl hover:bg-bw border-2 border-transparent hover:border-border rounded-full transition-colors" onClick={onClose}>✕</button>
         </div>
-        <div className="modal__body">{children}</div>
-        {footer && <div className="modal__footer">{footer}</div>}
+        <div className="p-6 overflow-y-auto">{children}</div>
+        {footer && <div className="p-4 border-t-4 border-border bg-gray-50 flex justify-end gap-3">{footer}</div>}
       </div>
     </div>
   );

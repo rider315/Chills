@@ -9,7 +9,7 @@ const router = express.Router();
  */
 router.get('/', async (req, res) => {
   try {
-    const filter = {};
+    const filter = { userId: req.user._id };
     if (req.query.status) {
       filter.status = req.query.status;
     }
@@ -36,9 +36,9 @@ router.get('/stats', async (req, res) => {
     const stats = {};
 
     for (const s of statuses) {
-      stats[s] = await Application.countDocuments({ status: s });
+      stats[s] = await Application.countDocuments({ status: s, userId: req.user._id });
     }
-    stats.total = await Application.countDocuments();
+    stats.total = await Application.countDocuments({ userId: req.user._id });
 
     return res.status(200).json({ stats });
   } catch (error) {
@@ -53,7 +53,7 @@ router.get('/stats', async (req, res) => {
  */
 router.get('/:id', async (req, res) => {
   try {
-    const application = await Application.findById(req.params.id);
+    const application = await Application.findOne({ _id: req.params.id, userId: req.user._id });
     if (!application) {
       return res.status(404).json({ error: 'Application not found.' });
     }
@@ -79,7 +79,7 @@ router.put('/:id/status', async (req, res) => {
       });
     }
 
-    const application = await Application.findById(req.params.id);
+    const application = await Application.findOne({ _id: req.params.id, userId: req.user._id });
     if (!application) {
       return res.status(404).json({ error: 'Application not found.' });
     }

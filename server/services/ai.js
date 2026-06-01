@@ -34,7 +34,7 @@ async function generateContent(prompt, retries = 2) {
       if (content) {
         return content;
       }
-      console.warn(`Attempt ${i + 1}: Received null/empty content from OpenRouter`);
+      console.warn(`Attempt ${i + 1}: Received null/empty content from OpenRouter. Raw response:`, JSON.stringify(response, null, 2));
     } catch (err) {
       console.error(`Attempt ${i + 1} failed:`, err.message);
       if (i === retries) throw err;
@@ -184,17 +184,33 @@ THINGS TO AVOID:
 
 SUBJECT LINE: Make it attractive and curiosity-driven, under 8 words. Example: "Experienced engineer available immediately", "Saw your latest project - quick question"
 
-Return ONLY valid JSON (no markdown fences):
-{
-  "subject": "",
-  "body": ""
-}`;
+Return your response EXACTLY in the following format (do not add any other text):
+
+SUBJECT: <your subject line>
+BODY:
+<your email body>
+`;
 
   const raw = await generateContent(prompt);
-  const safeRaw = raw || "";
-  const cleaned = safeRaw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
-  if (!safeRaw) return { subject: "Job Application", body: "Please find my resume attached." };
-  return JSON.parse(cleaned);
+  if (!raw) {
+    throw new Error("AI service returned empty response. Please try generating again.");
+  }
+
+  try {
+    const subjectMatch = raw.match(/SUBJECT:\s*(.+)/i);
+    const bodyMatch = raw.match(/BODY:\s*([\s\S]+)/i);
+
+    let subject = subjectMatch ? subjectMatch[1].trim() : "Job Application";
+    let body = bodyMatch ? bodyMatch[1].trim() : raw.trim();
+
+    // Clean up any potential markdown or quotes
+    subject = subject.replace(/^"|"$/g, '');
+    
+    return { subject, body };
+  } catch (err) {
+    console.error("Failed to parse email text.", err.message);
+    throw new Error("AI generated an invalid response format. Please try generating again.");
+  }
 }
 
 /**

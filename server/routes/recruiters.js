@@ -45,12 +45,13 @@ router.post('/manual', async (req, res) => {
     }
 
     // Check for duplicate email
-    const existing = await Recruiter.findOne({ email: email.toLowerCase().trim() });
+    const existing = await Recruiter.findOne({ email: email.toLowerCase().trim(), userId: req.user._id });
     if (existing) {
       return res.status(409).json({ error: `A recruiter with email "${email}" already exists.` });
     }
 
     const recruiter = await Recruiter.create({
+      userId: req.user._id,
       email: email.trim().toLowerCase(),
       company: (company || '').trim(),
       recruiterName: (recruiterName || '').trim(),
@@ -83,7 +84,7 @@ router.post('/excel', upload.single('file'), async (req, res) => {
     }
 
     const existingEmails = new Set(
-      (await Recruiter.find({}, 'email')).map((r) => r.email.toLowerCase())
+      (await Recruiter.find({ userId: req.user._id }, 'email')).map((r) => r.email.toLowerCase())
     );
     let added = 0;
     let skipped = 0;
@@ -94,6 +95,7 @@ router.post('/excel', upload.single('file'), async (req, res) => {
         continue;
       }
       await Recruiter.create({
+        userId: req.user._id,
         email: row.email.toLowerCase(),
         company: row.company,
         recruiterName: row.recruiterName,
@@ -103,7 +105,7 @@ router.post('/excel', upload.single('file'), async (req, res) => {
       added++;
     }
 
-    const total = await Recruiter.countDocuments();
+    const total = await Recruiter.countDocuments({ userId: req.user._id });
 
     return res.status(200).json({
       message: `Imported ${added} recruiter(s). Skipped ${skipped} duplicate(s).`,
@@ -136,7 +138,7 @@ router.post('/sheets', async (req, res) => {
     }
 
     const existingEmails = new Set(
-      (await Recruiter.find({}, 'email')).map((r) => r.email.toLowerCase())
+      (await Recruiter.find({ userId: req.user._id }, 'email')).map((r) => r.email.toLowerCase())
     );
     let added = 0;
     let skipped = 0;
@@ -147,6 +149,7 @@ router.post('/sheets', async (req, res) => {
         continue;
       }
       await Recruiter.create({
+        userId: req.user._id,
         email: row.email.toLowerCase(),
         company: row.company,
         recruiterName: row.recruiterName,
@@ -156,7 +159,7 @@ router.post('/sheets', async (req, res) => {
       added++;
     }
 
-    const total = await Recruiter.countDocuments();
+    const total = await Recruiter.countDocuments({ userId: req.user._id });
 
     return res.status(200).json({
       message: `Imported ${added} recruiter(s) from Google Sheets. Skipped ${skipped} duplicate(s).`,
@@ -176,7 +179,7 @@ router.post('/sheets', async (req, res) => {
  */
 router.get('/', async (req, res) => {
   try {
-    const recruiters = await Recruiter.find().sort({ createdAt: -1 });
+    const recruiters = await Recruiter.find({ userId: req.user._id }).sort({ createdAt: -1 });
     return res.status(200).json({ recruiters, total: recruiters.length });
   } catch (error) {
     console.error('List recruiters error:', error);
@@ -195,11 +198,11 @@ router.post('/bulk-delete', async (req, res) => {
       return res.status(400).json({ error: 'No recruiter IDs provided.' });
     }
 
-    const result = await Recruiter.deleteMany({ _id: { $in: ids } });
+    const result = await Recruiter.deleteMany({ _id: { $in: ids }, userId: req.user._id });
     
     // Cascade delete their applications (optional but good practice)
     const { Application } = require('../models');
-    await Application.deleteMany({ recruiterId: { $in: ids } });
+    await Application.deleteMany({ recruiterId: { $in: ids }, userId: req.user._id });
 
     return res.status(200).json({ message: `Deleted ${result.deletedCount} recruiters.`, deletedCount: result.deletedCount });
   } catch (error) {
@@ -215,7 +218,7 @@ router.post('/bulk-delete', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const removed = await Recruiter.findByIdAndDelete(id);
+    const removed = await Recruiter.findOneAndDelete({ _id: id, userId: req.user._id });
 
     if (!removed) {
       return res.status(404).json({ error: 'Recruiter not found.' });

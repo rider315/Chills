@@ -1,9 +1,22 @@
 const mongoose = require('mongoose');
 
 // ---------------------------------------------------------------------------
+// User Schema
+// ---------------------------------------------------------------------------
+const userSchema = new mongoose.Schema({
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  tier: { type: String, enum: ['free', 'premium'], default: 'free' },
+  emailsSent: { type: Number, default: 0 },
+}, { timestamps: true });
+
+const User = mongoose.model('User', userSchema);
+
+// ---------------------------------------------------------------------------
 // Resume Schema
 // ---------------------------------------------------------------------------
 const resumeSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   filename: { type: String, default: '' },
   text: { type: String, default: '' },
   parsed: { type: mongoose.Schema.Types.Mixed, default: {} },
@@ -16,13 +29,14 @@ const Resume = mongoose.model('Resume', resumeSchema);
 // Recruiter Schema
 // ---------------------------------------------------------------------------
 const recruiterSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   email: { type: String, required: true, trim: true },
   company: { type: String, default: '', trim: true },
   recruiterName: { type: String, default: '', trim: true },
   source: { type: String, enum: ['manual', 'excel', 'sheets'], default: 'manual' },
 }, { timestamps: true });
 
-recruiterSchema.index({ email: 1 }, { unique: true });
+recruiterSchema.index({ userId: 1, email: 1 }, { unique: true });
 
 const Recruiter = mongoose.model('Recruiter', recruiterSchema);
 
@@ -39,6 +53,7 @@ const replySubSchema = new mongoose.Schema({
 }, { _id: true });
 
 const applicationSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   recruiterId: { type: mongoose.Schema.Types.ObjectId, ref: 'Recruiter', required: true },
   recruiterEmail: { type: String, default: '' },
   company: { type: String, default: '' },
@@ -64,6 +79,7 @@ const Application = mongoose.model('Application', applicationSchema);
 // Settings Schema (singleton document)
 // ---------------------------------------------------------------------------
 const settingsSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   smtpConfigured: { type: Boolean, default: false },
   smtpHost: { type: String, default: '' },
   smtpPort: { type: Number, default: 587 },
@@ -82,16 +98,16 @@ const settingsSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 /**
- * Get or create the singleton settings document.
+ * Get or create the settings document for a user.
  */
-settingsSchema.statics.getSingleton = async function () {
-  let settings = await this.findOne();
+settingsSchema.statics.getForUser = async function (userId) {
+  let settings = await this.findOne({ userId });
   if (!settings) {
-    settings = await this.create({});
+    settings = await this.create({ userId });
   }
   return settings;
 };
 
 const Settings = mongoose.model('Settings', settingsSchema);
 
-module.exports = { Resume, Recruiter, Application, Settings };
+module.exports = { User, Resume, Recruiter, Application, Settings };

@@ -1,5 +1,4 @@
 import React, { useRef, useState } from 'react';
-import './FileUpload.css';
 
 export default function FileUpload({ accept, onUpload, label, icon, currentFile, onRemove }) {
   const inputRef = useRef(null);
@@ -62,15 +61,17 @@ export default function FileUpload({ accept, onUpload, label, icon, currentFile,
 
   if (currentFile) {
     return (
-      <div className="file-upload__preview glass-card">
-        <div className="file-upload__file-icon">📄</div>
-        <div className="file-upload__file-info">
-          <span className="file-upload__file-name">{currentFile.name || currentFile.filename || 'Uploaded file'}</span>
-          {currentFile.size && (
-            <span className="file-upload__file-size">{formatSize(currentFile.size)}</span>
-          )}
+      <div className="card-neo bg-bw border-4 flex items-center justify-between gap-4 p-4">
+        <div className="flex items-center gap-4 flex-1 min-w-0">
+          <div className="text-4xl">📄</div>
+          <div className="flex flex-col min-w-0">
+            <span className="font-black text-lg truncate">{currentFile.name || currentFile.filename || 'Uploaded file'}</span>
+            {currentFile.size && (
+              <span className="font-bold opacity-70 text-sm">{formatSize(currentFile.size)}</span>
+            )}
+          </div>
         </div>
-        <button className="btn btn-ghost btn-sm" onClick={onRemove}>
+        <button className="btn-neo btn-neo-red px-3 py-1 flex-shrink-0" onClick={onRemove}>
           ✕ Remove
         </button>
       </div>
@@ -79,7 +80,7 @@ export default function FileUpload({ accept, onUpload, label, icon, currentFile,
 
   return (
     <div
-      className={`file-upload ${dragOver ? 'file-upload--drag-over' : ''} ${uploading ? 'file-upload--uploading' : ''}`}
+      className={`card-neo border-4 p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-colors relative overflow-hidden ${dragOver ? 'bg-neo-yellow/20 border-dashed border-neo-yellow' : 'bg-bw border-dashed hover:bg-gray-50'} ${uploading ? 'pointer-events-none' : ''}`}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -90,30 +91,30 @@ export default function FileUpload({ accept, onUpload, label, icon, currentFile,
         type="file"
         accept={accept}
         onChange={handleChange}
-        className="file-upload__input"
+        className="hidden"
       />
-      <div className="file-upload__content">
-        <div className="file-upload__icon">{icon || '📁'}</div>
-        <div className="file-upload__label">{label || 'Drop your file here'}</div>
-        <div className="file-upload__hint">
-          or <span className="file-upload__browse">browse</span> to choose
+      <div className="flex flex-col items-center gap-2 z-10 relative">
+        <div className="text-5xl mb-2">{icon || '📁'}</div>
+        <div className="text-xl font-black">{label || 'Drop your file here'}</div>
+        <div className="font-bold opacity-70">
+          or <span className="text-neo-blue underline">browse</span> to choose
         </div>
         {accept && (
-          <div className="file-upload__formats">
+          <div className="mt-2 text-sm font-bold uppercase tracking-widest bg-gray-100 px-3 py-1 rounded border-2 border-border">
             Accepted: {accept.split(',').map(t => t.trim().replace('.', '').toUpperCase()).join(', ')}
           </div>
         )}
       </div>
 
       {uploading && (
-        <div className="file-upload__progress-wrapper">
-          <div className="progress-bar">
+        <div className="absolute inset-0 bg-bw/80 backdrop-blur-sm z-20 flex flex-col items-center justify-center p-6">
+          <div className="w-full max-w-xs h-4 bg-gray-200 border-2 border-border rounded-full overflow-hidden mb-2 relative">
             <div
-              className="progress-bar__fill"
+              className="h-full bg-neo-green transition-all duration-300"
               style={{ width: `${progress}%` }}
             />
           </div>
-          <span className="file-upload__progress-text">{Math.round(progress)}%</span>
+          <span className="font-black text-lg">{Math.round(progress)}%</span>
         </div>
       )}
     </div>

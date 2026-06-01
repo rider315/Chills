@@ -44,19 +44,27 @@ app.use((req, res, next) => {
 // ---------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------
+const authRoutes = require('./routes/auth');
 const resumeRoutes = require('./routes/resume');
 const recruiterRoutes = require('./routes/recruiters');
 const emailRoutes = require('./routes/emails');
 const applicationRoutes = require('./routes/applications');
 const replyRoutes = require('./routes/replies');
 const settingsRoutes = require('./routes/settings');
+const usageRoutes = require('./routes/usage');
+const authMiddleware = require('./middleware/auth');
 
-app.use('/api/resume', resumeRoutes);
-app.use('/api/recruiters', recruiterRoutes);
-app.use('/api/emails', emailRoutes);
-app.use('/api/applications', applicationRoutes);
-app.use('/api/replies', replyRoutes);
-app.use('/api/settings', settingsRoutes);
+// Public routes
+app.use('/api/auth', authRoutes);
+
+// Protected routes
+app.use('/api/resume', authMiddleware, resumeRoutes);
+app.use('/api/recruiters', authMiddleware, recruiterRoutes);
+app.use('/api/emails', authMiddleware, emailRoutes);
+app.use('/api/applications', authMiddleware, applicationRoutes);
+app.use('/api/replies', authMiddleware, replyRoutes);
+app.use('/api/settings', authMiddleware, settingsRoutes);
+app.use('/api/usage', authMiddleware, usageRoutes);
 
 // ---------------------------------------------------------------------------
 // Health check
@@ -70,10 +78,14 @@ app.get('/api/health', (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// 404 handler
+// Serve Frontend (React)
 // ---------------------------------------------------------------------------
-app.use((req, res) => {
-  res.status(404).json({ error: `Route not found: ${req.method} ${req.originalUrl}` });
+const clientDistPath = path.join(__dirname, '../client/dist');
+app.use(express.static(clientDistPath));
+
+// Any route that doesn't start with /api will be handled by React Router
+app.get('*', (req, res) => {
+  res.sendFile(path.join(clientDistPath, 'index.html'));
 });
 
 // ---------------------------------------------------------------------------

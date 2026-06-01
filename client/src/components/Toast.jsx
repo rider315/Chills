@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
-import './Toast.css';
 
 const ToastContext = createContext(null);
 
@@ -47,7 +46,7 @@ export function ToastProvider({ children }) {
   return (
     <ToastContext.Provider value={contextValue.current}>
       {children}
-      <div className="toast-container">
+      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-3 pointer-events-none">
         {toasts.map((t) => (
           <ToastItem key={t.id} toast={t} onDismiss={() => removeToast(t.id)} />
         ))}
@@ -64,23 +63,22 @@ function ToastItem({ toast, onDismiss }) {
     setTimeout(onDismiss, 280);
   };
 
-  const icons = {
-    success: '✓',
-    error: '✕',
-    info: 'ℹ',
-    warning: '⚠',
+  const typeConfig = {
+    success: { icon: '✓', bg: 'bg-neo-green' },
+    error: { icon: '✕', bg: 'bg-neo-red text-bw' },
+    info: { icon: 'ℹ', bg: 'bg-neo-blue text-bw' },
+    warning: { icon: '⚠', bg: 'bg-neo-yellow' },
   };
 
+  const config = typeConfig[toast.type] || typeConfig.info;
+
   return (
-    <div className={`toast toast--${toast.type} ${exiting ? 'toast--exit' : ''}`}>
-      <div className="toast__icon">{icons[toast.type]}</div>
-      <div className="toast__message">{toast.message}</div>
-      <button className="toast__close" onClick={handleDismiss}>✕</button>
+    <div className={`card-neo flex items-center gap-3 p-4 min-w-[300px] border-4 pointer-events-auto transition-all duration-300 ${config.bg} ${exiting ? 'opacity-0 translate-x-10' : 'animate-slideUp'}`}>
+      <div className="text-xl font-black">{config.icon}</div>
+      <div className="flex-1 font-bold">{toast.message}</div>
+      <button className="text-xl font-black opacity-70 hover:opacity-100 transition-opacity" onClick={handleDismiss}>✕</button>
       {toast.duration > 0 && (
-        <div
-          className="toast__progress"
-          style={{ animationDuration: `${toast.duration}ms` }}
-        />
+        <div className="absolute bottom-0 left-0 h-1 bg-bw/50" style={{ width: '100%', animation: `shrink ${toast.duration}ms linear forwards` }} />
       )}
     </div>
   );

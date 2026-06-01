@@ -11,8 +11,8 @@ const router = express.Router();
 /**
  * Helper: get profile links and settings
  */
-async function getProfileSettings() {
-  const settings = await Settings.getSingleton();
+async function getProfileSettings(userId) {
+  const settings = await Settings.getForUser(userId);
   return {
     linkedinUrl: settings.linkedinUrl || '',
     portfolioUrl: settings.portfolioUrl || '',
@@ -51,7 +51,7 @@ function findResumeFile(resume) {
  */
 router.get('/status', async (req, res) => {
   try {
-    const applications = await Application.find({}, 'recruiterId status generatedEmail');
+    const applications = await Application.find({ userId: req.user._id }, 'recruiterId status generatedEmail');
     const statusMap = {};
     for (const app of applications) {
       statusMap[app.recruiterId.toString()] = {
@@ -76,20 +76,20 @@ router.post('/generate/:recruiterId', async (req, res) => {
     const { recruiterId } = req.params;
 
     // Get resume
-    const resume = await Resume.findOne();
+    const resume = await Resume.findOne({ userId: req.user._id });
     if (!resume || !resume.parsed || Object.keys(resume.parsed).length === 0) {
       return res.status(400).json({ error: 'Please upload and parse a resume first.' });
     }
 
     // Find recruiter
-    const recruiter = await Recruiter.findById(recruiterId);
+    const recruiter = await Recruiter.findOne({ _id: recruiterId, userId: req.user._id });
     if (!recruiter) {
       return res.status(404).json({ error: 'Recruiter not found.' });
     }
 
     // Check for existing application (skip if regenerating via ?force=true)
     const force = req.query.force === 'true';
-    const existingApp = await Application.findOne({ recruiterId });
+    const existingApp = await Application.findOne({ recruiterId, userId: req.user._id });
     if (!force && existingApp && existingApp.generatedEmail && existingApp.generatedEmail.subject) {
       return res.status(200).json({
         message: 'Application already exists for this recruiter.',
@@ -99,7 +99,7 @@ router.post('/generate/:recruiterId', async (req, res) => {
     }
 
     // Get profile settings (links, immediateJoiner)
-    const profileSettings = await getProfileSettings();
+    const profileSettings = await getProfileSettings(req.user._id);
 
     // Step 1: Research company
     const companyResearch = await ai.researchCompany(recruiter.company || 'Unknown Company');
@@ -130,6 +130,7 @@ router.post('/generate/:recruiterId', async (req, res) => {
 
     // Create new application record
     const application = await Application.create({
+      userId: req.user._id,
       recruiterId: recruiter._id,
       recruiterEmail: recruiter.email,
       company: recruiter.company,
@@ -157,23 +158,23 @@ router.post('/generate/:recruiterId', async (req, res) => {
  */
 router.post('/generate-bulk', async (req, res) => {
   try {
-    const resume = await Resume.findOne();
+    const resume = await Resume.findOne({ userId: req.user._id });
     if (!resume || !resume.parsed || Object.keys(resume.parsed).length === 0) {
       return res.status(400).json({ error: 'Please upload and parse a resume first.' });
     }
 
-    const profileSettings = await getProfileSettings();
+    const profileSettings = await getProfileSettings(req.user._id);
 
     // Allow optional recruiterIds in body
     const { recruiterIds } = req.body || {};
-    let targetRecruiters = await Recruiter.find();
+    let targetRecruiters = await Recruiter.find({ userId: req.user._id });
     if (Array.isArray(recruiterIds) && recruiterIds.length > 0) {
       const idSet = new Set(recruiterIds);
       targetRecruiters = targetRecruiters.filter((r) => idSet.has(r._id.toString()));
     }
 
     // Find recruiters without applications
-    const existingRecruiterIds = (await Application.find({}, 'recruiterId')).map((a) => a.recruiterId.toString());
+    const existingRecruiterIds = (await Application.find({ userId: req.user._id }, 'recruiterId')).map((a) => a.recruiterId.toString());
     const existingSet = new Set(existingRecruiterIds);
     const pendingRecruiters = targetRecruiters.filter((r) => !existingSet.has(r._id.toString()));
 
@@ -194,6 +195,7 @@ router.post('/generate-bulk', async (req, res) => {
         const sendTimeInfo = await ai.suggestSendTime(recruiter.company, recruiter);
 
         await Application.create({
+          userId: req.user._id,
           recruiterId: recruiter._id,
           recruiterEmail: recruiter.email,
           company: recruiter.company,
@@ -211,7 +213,7 @@ router.post('/generate-bulk', async (req, res) => {
       }
     }
 
-    const total = await Application.countDocuments();
+    const total = await Application.countDocuments({ userId: req.user._id });
 
     return res.status(200).json({
       message: `Bulk generation complete. Generated: ${results.generated}, Failed: ${results.failed}.`,
@@ -230,7 +232,7 @@ router.post('/generate-bulk', async (req, res) => {
  */
 router.get('/by-recruiter/:recruiterId', async (req, res) => {
   try {
-    const application = await Application.findOne({ recruiterId: req.params.recruiterId });
+    const application = await Application.findOne({ recruiterId: req.params.recruiterId, userId: req.user._id });
     if (!application) {
       return res.status(404).json({ error: 'No application found for this recruiter.' });
     }
@@ -247,7 +249,7 @@ router.get('/by-recruiter/:recruiterId', async (req, res) => {
  */
 router.get('/:applicationId', async (req, res) => {
   try {
-    const application = await Application.findById(req.params.applicationId);
+    const application = await Application.findOne({ _id: req.params.applicationId, userId: req.user._id });
     if (!application) {
       return res.status(404).json({ error: 'Application not found.' });
     }
@@ -265,7 +267,7 @@ router.get('/:applicationId', async (req, res) => {
 router.put('/:applicationId', async (req, res) => {
   try {
     const { subject, body } = req.body;
-    const application = await Application.findById(req.params.applicationId);
+    const application = await Application.findOne({ _id: req.params.applicationId, userId: req.user._id });
     if (!application) {
       return res.status(404).json({ error: 'Application not found.' });
     }
@@ -287,7 +289,7 @@ router.put('/:applicationId', async (req, res) => {
  */
 router.post('/:applicationId/send', async (req, res) => {
   try {
-    const application = await Application.findById(req.params.applicationId);
+    const application = await Application.findOne({ _id: req.params.applicationId, userId: req.user._id });
     if (!application) {
       return res.status(404).json({ error: 'Application not found.' });
     }
@@ -297,15 +299,14 @@ router.post('/:applicationId/send', async (req, res) => {
     }
 
     // Fetch user settings from DB
-    const settings = await Settings.getSingleton();
+    const settings = await Settings.getForUser(req.user._id);
 
-    // Prioritize DB settings; fallback to .env config if DB is not configured
-    const smtpConfig = settings.smtpConfigured ? {
+    const smtpConfig = {
       host: settings.smtpHost,
       port: settings.smtpPort,
       user: settings.smtpUser,
       pass: settings.smtpPass,
-    } : config.smtp;
+    };
 
     if (!smtpConfig.host || !smtpConfig.user || !smtpConfig.pass) {
       return res.status(400).json({ error: 'SMTP is not configured. Please configure SMTP in the Settings page.' });
@@ -314,8 +315,13 @@ router.post('/:applicationId/send', async (req, res) => {
     const transport = emailSender.createTransport(smtpConfig);
     const fromAddress = `${smtpConfig.user}`;
 
+    // Freemium Limit Check
+    if (!req.user.isPremium && (req.user.emailsSent || 0) >= 5) {
+      return res.status(403).json({ error: 'You have reached the limit of 5 emails on the free tier. Please upgrade to premium to send more.' });
+    }
+
     // Find resume file for attachment
-    const resume = await Resume.findOne();
+    const resume = await Resume.findOne({ userId: req.user._id });
     const resumeFile = findResumeFile(resume);
     const attachments = resumeFile ? [resumeFile] : [];
 
@@ -335,6 +341,10 @@ router.post('/:applicationId/send', async (req, res) => {
     application.sentAt = new Date();
     await application.save();
 
+    // Increment usage
+    req.user.emailsSent = (req.user.emailsSent || 0) + 1;
+    await req.user.save();
+
     return res.status(200).json({
       message: `Email sent successfully${resumeFile ? ' with resume attached' : ''}.`,
       messageId: result.messageId,
@@ -353,7 +363,7 @@ router.post('/:applicationId/send', async (req, res) => {
  */
 router.post('/:applicationId/copy', async (req, res) => {
   try {
-    const application = await Application.findById(req.params.applicationId);
+    const application = await Application.findOne({ _id: req.params.applicationId, userId: req.user._id });
     if (!application) {
       return res.status(404).json({ error: 'Application not found.' });
     }
@@ -386,13 +396,13 @@ router.post('/:applicationId/copy', async (req, res) => {
  */
 router.post('/send-bulk', async (req, res) => {
   try {
-    const settings = await Settings.getSingleton();
-    const smtpConfig = settings.smtpConfigured ? {
+    const settings = await Settings.getForUser(req.user._id);
+    const smtpConfig = {
       host: settings.smtpHost,
       port: settings.smtpPort,
       user: settings.smtpUser,
       pass: settings.smtpPass,
-    } : config.smtp;
+    };
 
     if (!smtpConfig.host || !smtpConfig.user || !smtpConfig.pass) {
       return res.status(400).json({ error: 'SMTP is not configured.' });
@@ -404,7 +414,7 @@ router.post('/send-bulk', async (req, res) => {
     const { recruiterIds } = req.body || {};
     
     // Find all draft applications with a generated email
-    let applications = await Application.find({ status: 'draft' });
+    let applications = await Application.find({ status: 'draft', userId: req.user._id });
     if (Array.isArray(recruiterIds) && recruiterIds.length > 0) {
       const idSet = new Set(recruiterIds);
       applications = applications.filter(app => idSet.has(app.recruiterId.toString()));
@@ -415,13 +425,20 @@ router.post('/send-bulk', async (req, res) => {
       return res.status(200).json({ message: 'No draft emails ready to send.', sent: 0, total: 0 });
     }
 
-    const resume = await Resume.findOne();
+    const resume = await Resume.findOne({ userId: req.user._id });
     const resumeFile = findResumeFile(resume);
     const attachments = resumeFile ? [resumeFile] : [];
 
     const results = { sent: 0, failed: 0, errors: [] };
-
+    
+    // Check initial limit before loop
     for (const app of readyToSend) {
+      if (!req.user.isPremium && (req.user.emailsSent || 0) >= 5) {
+        results.failed++;
+        results.errors.push({ recruiterEmail: app.recruiterEmail, error: 'Free tier limit (5 emails) reached.' });
+        continue;
+      }
+
       try {
         const result = await emailSender.sendEmail(transport, {
           from: settings.userName ? `"${settings.userName}" <${fromAddress}>` : fromAddress,
@@ -435,6 +452,10 @@ router.post('/send-bulk', async (req, res) => {
           app.status = 'sent';
           app.sentAt = new Date();
           await app.save();
+          
+          req.user.emailsSent = (req.user.emailsSent || 0) + 1;
+          await req.user.save();
+          
           results.sent++;
         } else {
           throw new Error(result.error);

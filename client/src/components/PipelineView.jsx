@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { STATUS_STAGES, STATUS_LABELS, STATUS_COLORS, STATUS_ICONS } from '../utils/constants';
 import StatusBadge from './StatusBadge';
-import './PipelineView.css';
 
 export default function PipelineView({ applications = [], onStatusChange, onCardClick }) {
   const [draggedApp, setDraggedApp] = useState(null);
@@ -38,43 +37,45 @@ export default function PipelineView({ applications = [], onStatusChange, onCard
   };
 
   return (
-    <div className="pipeline">
-      <div className="pipeline__columns">
+    <div className="w-full h-full overflow-x-auto overflow-y-hidden pb-6 custom-scrollbar">
+      <div className="flex gap-6 min-w-max px-1 h-full items-start">
         {columns.map((col) => (
           <div
             key={col.stage}
-            className="pipeline__column"
+            className="flex flex-col w-[320px] max-h-full bg-bw border-4 border-border rounded-base p-4 shadow-neo flex-shrink-0"
             onDragOver={handleDragOver}
             onDrop={(e) => handleDrop(e, col.stage)}
           >
-            <div className="pipeline__column-header" style={{ borderColor: col.color.text }}>
-              <span className="pipeline__column-icon">{col.icon}</span>
-              <span className="pipeline__column-label">{col.label}</span>
-              <span className="pipeline__column-count">{col.apps.length}</span>
+            <div className="flex items-center gap-2 pb-3 mb-3 border-b-4 border-border font-bold uppercase tracking-wider flex-shrink-0">
+              <span className="text-xl">{col.icon}</span>
+              <span className="flex-1 text-sm">{col.label}</span>
+              <span className="bg-neo-yellow px-2.5 py-0.5 rounded-full border-2 border-border shadow-neosm text-xs">
+                {col.apps.length}
+              </span>
             </div>
 
-            <div className="pipeline__column-body">
+            <div className="flex flex-col gap-3 min-h-[50px] overflow-y-auto custom-scrollbar pr-2 pb-2">
               {col.apps.length === 0 ? (
-                <div className="pipeline__empty">
-                  <span className="text-xs text-muted">No items</span>
+                <div className="flex items-center justify-center h-full min-h-[100px] text-sm font-bold text-gray-400 uppercase tracking-wider p-8 border-2 border-dashed border-gray-300 rounded-base">
+                  No items
                 </div>
               ) : (
                 col.apps.map((app) => (
                   <div
                     key={app.id || app._id}
-                    className="pipeline__card glass-card"
+                    className="card-neo cursor-move p-4 flex flex-col gap-1 active:shadow-neosm active:translate-x-1 active:translate-y-1"
                     draggable
                     onDragStart={(e) => handleDragStart(e, app)}
                     onClick={() => onCardClick?.(app)}
                   >
-                    <div className="pipeline__card-company">
+                    <div className="font-bold text-lg leading-tight truncate">
                       {app.company || app.recruiter?.company || 'Unknown Company'}
                     </div>
-                    <div className="pipeline__card-email">
+                    <div className="text-sm font-medium opacity-80 truncate">
                       {app.recruiterEmail || app.recruiter?.email || ''}
                     </div>
                     {(app.createdAt || app.sentAt) && (
-                      <div className="pipeline__card-date">
+                      <div className="text-xs font-bold uppercase mt-2 pt-2 border-t-2 border-border opacity-70">
                         {formatDate(app.sentAt || app.createdAt)}
                       </div>
                     )}

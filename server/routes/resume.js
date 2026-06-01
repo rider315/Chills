@@ -50,8 +50,8 @@ router.post('/upload', upload.single('resume'), async (req, res) => {
     // Parse resume with AI
     const parsed = await ai.parseResume(text);
 
-    // Upsert resume in database (only keep one resume)
-    let resume = await Resume.findOne();
+    // Upsert resume in database (only keep one resume per user)
+    let resume = await Resume.findOne({ userId: req.user._id });
     if (resume) {
       resume.filename = req.file.originalname;
       resume.text = text;
@@ -60,6 +60,7 @@ router.post('/upload', upload.single('resume'), async (req, res) => {
       await resume.save();
     } else {
       resume = await Resume.create({
+        userId: req.user._id,
         filename: req.file.originalname,
         text,
         parsed,
@@ -83,7 +84,7 @@ router.post('/upload', upload.single('resume'), async (req, res) => {
  */
 router.get('/', async (req, res) => {
   try {
-    const resume = await Resume.findOne();
+    const resume = await Resume.findOne({ userId: req.user._id });
 
     if (!resume || !resume.filename) {
       return res.status(404).json({ error: 'No resume uploaded yet.' });
@@ -102,7 +103,7 @@ router.get('/', async (req, res) => {
  */
 router.delete('/', async (req, res) => {
   try {
-    await Resume.deleteMany({});
+    await Resume.deleteMany({ userId: req.user._id });
     return res.status(200).json({ message: 'Resume data cleared.' });
   } catch (error) {
     console.error('Delete resume error:', error);
