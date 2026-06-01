@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { get, post, del, upload } from '../utils/api';
 import { useToast } from '../components/Toast';
 import FileUpload from '../components/FileUpload';
+import Modal from '../components/Modal';
 
 const STEPS = [
   { num: 1, label: 'Resume' },
@@ -26,6 +27,7 @@ export default function Setup() {
   const [sheetsUrl, setSheetsUrl] = useState('');
   const [addingRecruiter, setAddingRecruiter] = useState(false);
   const [selectedRecruiters, setSelectedRecruiters] = useState([]);
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, type: null, count: 0 });
 
   useEffect(() => {
     fetchResume();
@@ -131,32 +133,39 @@ export default function Setup() {
     }
   };
 
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = () => {
     if (selectedRecruiters.length === 0) return;
-    if (!window.confirm(`Are you sure you want to delete ${selectedRecruiters.length} recruiter(s)?`)) return;
-
-    try {
-      await post('/api/recruiters/bulk-delete', { ids: selectedRecruiters });
-      setRecruiters((prev) => prev.filter((r) => !selectedRecruiters.includes(r.id || r._id)));
-      setSelectedRecruiters([]);
-      toast.info(`Removed ${selectedRecruiters.length} recruiter(s)`);
-    } catch (err) {
-      toast.error(err.message || 'Failed to bulk delete recruiters');
-    }
+    setConfirmModal({ isOpen: true, type: 'bulk', count: selectedRecruiters.length });
   };
 
-  const handleDeleteAll = async () => {
+  const handleDeleteAll = () => {
     if (recruiters.length === 0) return;
-    if (!window.confirm('Are you sure you want to delete ALL recruiters? This action cannot be undone.')) return;
+    setConfirmModal({ isOpen: true, type: 'all', count: recruiters.length });
+  };
+
+  const executeDelete = async () => {
+    const { type } = confirmModal;
+    setConfirmModal({ isOpen: false, type: null, count: 0 });
     
-    const allIds = recruiters.map(r => r.id || r._id);
-    try {
-      await post('/api/recruiters/bulk-delete', { ids: allIds });
-      setRecruiters([]);
-      setSelectedRecruiters([]);
-      toast.info('All recruiters removed');
-    } catch (err) {
-      toast.error(err.message || 'Failed to clear recruiters');
+    if (type === 'bulk') {
+      try {
+        await post('/api/recruiters/bulk-delete', { ids: selectedRecruiters });
+        setRecruiters((prev) => prev.filter((r) => !selectedRecruiters.includes(r.id || r._id)));
+        setSelectedRecruiters([]);
+        toast.info(`Removed ${selectedRecruiters.length} recruiter(s)`);
+      } catch (err) {
+        toast.error(err.message || 'Failed to bulk delete recruiters');
+      }
+    } else if (type === 'all') {
+      const allIds = recruiters.map(r => r.id || r._id);
+      try {
+        await post('/api/recruiters/bulk-delete', { ids: allIds });
+        setRecruiters([]);
+        setSelectedRecruiters([]);
+        toast.info('All recruiters removed');
+      } catch (err) {
+        toast.error(err.message || 'Failed to clear recruiters');
+      }
     }
   };
 
@@ -471,6 +480,25 @@ export default function Setup() {
           Next →
         </button>
       </div>
+
+      {/* Confirmation Modal */}
+      <Modal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ isOpen: false, type: null, count: 0 })}
+        title="Confirm Deletion"
+        footer={
+          <>
+            <button className="btn-neo btn-neo-white" onClick={() => setConfirmModal({ isOpen: false, type: null, count: 0 })}>Cancel</button>
+            <button className="btn-neo bg-neo-red text-bw" onClick={executeDelete}>Delete</button>
+          </>
+        }
+      >
+        <p className="text-lg font-medium">
+          {confirmModal.type === 'all' 
+            ? 'Are you sure you want to delete ALL recruiters? This action cannot be undone.' 
+            : `Are you sure you want to delete ${confirmModal.count} selected recruiter(s)?`}
+        </p>
+      </Modal>
     </div>
   );
 }

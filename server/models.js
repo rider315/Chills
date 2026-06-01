@@ -8,6 +8,9 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   tier: { type: String, enum: ['free', 'premium'], default: 'free' },
   emailsSent: { type: Number, default: 0 },
+  razorpayCustomerId: { type: String, default: null },
+  razorpaySubscriptionId: { type: String, default: null },
+  subscriptionStatus: { type: String, default: null },
 }, { timestamps: true });
 
 const User = mongoose.model('User', userSchema);

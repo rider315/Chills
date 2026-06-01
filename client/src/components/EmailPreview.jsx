@@ -24,8 +24,12 @@ export default function EmailPreview({
     if (email) {
       setSubject(email.subject || '');
       setBody(email.body || '');
+    } else {
+      setSubject('');
+      setBody('');
     }
-  }, [email]);
+    setEditing(false);
+  }, [email, recruiter]);
 
   // Auto-resize textarea
   useEffect(() => {

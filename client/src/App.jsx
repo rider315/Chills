@@ -10,6 +10,7 @@ import Applications from './pages/Applications';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import Pricing from './pages/Pricing';
 import './index.css';
 
 function ProtectedRoute({ children }) {
@@ -35,6 +36,7 @@ function AppLayout() {
           <Route path="/emails" element={<Emails />} />
           <Route path="/applications" element={<Applications />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/pricing" element={<Pricing />} />
         </Routes>
       </main>
     </div>

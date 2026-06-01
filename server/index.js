@@ -52,10 +52,13 @@ const applicationRoutes = require('./routes/applications');
 const replyRoutes = require('./routes/replies');
 const settingsRoutes = require('./routes/settings');
 const usageRoutes = require('./routes/usage');
+const subscriptionRoutes = require('./routes/subscriptions');
+const webhookRoutes = require('./routes/webhooks');
 const authMiddleware = require('./middleware/auth');
 
 // Public routes
 app.use('/api/auth', authRoutes);
+app.use('/api/webhooks', webhookRoutes);
 
 // Protected routes
 app.use('/api/resume', authMiddleware, resumeRoutes);
@@ -65,6 +68,7 @@ app.use('/api/applications', authMiddleware, applicationRoutes);
 app.use('/api/replies', authMiddleware, replyRoutes);
 app.use('/api/settings', authMiddleware, settingsRoutes);
 app.use('/api/usage', authMiddleware, usageRoutes);
+app.use('/api/subscriptions', authMiddleware, subscriptionRoutes);
 
 // ---------------------------------------------------------------------------
 // Health check

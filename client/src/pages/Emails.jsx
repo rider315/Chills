@@ -62,14 +62,8 @@ export default function Emails() {
     }
   };
 
-  const handleUpgrade = async () => {
-    try {
-      const res = await post('/api/usage/upgrade');
-      toast.success(res.message || 'Upgraded successfully!');
-      fetchData(); // refresh stats
-    } catch (err) {
-      toast.error('Upgrade failed: ' + err.message);
-    }
+  const handleUpgrade = () => {
+    window.location.href = '/pricing';
   };
 
   const handleSelectRecruiter = async (recruiter) => {
