@@ -18,7 +18,7 @@ export default function Sidebar({ collapsed, onToggle }) {
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    navigate('/');
   };
 
   return (

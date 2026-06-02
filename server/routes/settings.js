@@ -20,6 +20,14 @@ router.get('/', async (req, res) => {
       response.smtpPass = '••••••••';
     }
 
+    // Mask Gemini API key
+    if (response.geminiApiKey) {
+      response.geminiApiKeyConfigured = true;
+      response.geminiApiKey = '••••••••';
+    } else {
+      response.geminiApiKeyConfigured = false;
+    }
+
     // Include whether OpenRouter API key is configured
     const config = require('../config');
     response.openRouterApiKeyConfigured = !!config.openRouterApiKey;
@@ -39,12 +47,16 @@ router.put('/', async (req, res) => {
   try {
     const settings = await Settings.getForUser(req.user._id);
     const updates = req.body;
-    const allowedFields = ['smtpHost', 'smtpPort', 'smtpUser', 'smtpPass', 'userName', 'userEmail', 'mobileNumber', 'linkedinUrl', 'portfolioUrl', 'immediateJoiner'];
+    const allowedFields = ['smtpHost', 'smtpPort', 'smtpUser', 'smtpPass', 'userName', 'userEmail', 'mobileNumber', 'linkedinUrl', 'portfolioUrl', 'immediateJoiner', 'aiProvider', 'geminiApiKey'];
 
     for (const field of allowedFields) {
       if (updates[field] !== undefined) {
         // Prevent overwriting the real password with the masked version
         if (field === 'smtpPass' && updates[field] === '••••••••') {
+          continue;
+        }
+        // Prevent overwriting the real Gemini API key with the masked version
+        if (field === 'geminiApiKey' && updates[field] === '••••••••') {
           continue;
         }
         settings[field] = updates[field];
@@ -64,6 +76,12 @@ router.put('/', async (req, res) => {
     const response = settings.toObject();
     if (response.smtpPass) {
       response.smtpPass = '••••••••';
+    }
+    if (response.geminiApiKey) {
+      response.geminiApiKeyConfigured = true;
+      response.geminiApiKey = '••••••••';
+    } else {
+      response.geminiApiKeyConfigured = false;
     }
 
     return res.status(200).json(response);

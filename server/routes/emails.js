@@ -23,6 +23,17 @@ async function getProfileSettings(userId) {
 }
 
 /**
+ * Helper: build AI config from user settings (provider + API key)
+ */
+async function getAiConfig(userId) {
+  const settings = await Settings.getForUser(userId);
+  return {
+    provider: settings.aiProvider || 'openrouter',
+    geminiApiKey: settings.geminiApiKey || '',
+  };
+}
+
+/**
  * Helper: find the resume file path on disk
  */
 function findResumeFile(resume) {
@@ -100,15 +111,17 @@ router.post('/generate/:recruiterId', async (req, res) => {
 
     // Get profile settings (links, immediateJoiner)
     const profileSettings = await getProfileSettings(req.user._id);
+    // Get AI provider config
+    const aiConfig = await getAiConfig(req.user._id);
 
     // Step 1: Research company
-    const companyResearch = await ai.researchCompany(recruiter.company || 'Unknown Company');
+    const companyResearch = await ai.researchCompany(recruiter.company || 'Unknown Company', aiConfig);
     console.log('Company research done for:', recruiter.company);
 
-    const generatedEmail = await ai.generateEmail(resume.parsed, companyResearch, recruiter, profileSettings);
+    const generatedEmail = await ai.generateEmail(resume.parsed, companyResearch, recruiter, profileSettings, aiConfig);
     console.log('Email generated for:', recruiter.email);
 
-    const sendTimeInfo = await ai.suggestSendTime(recruiter.company, recruiter);
+    const sendTimeInfo = await ai.suggestSendTime(recruiter.company, recruiter, aiConfig);
 
     if (existingApp) {
       // Update existing application
@@ -164,6 +177,7 @@ router.post('/generate-bulk', async (req, res) => {
     }
 
     const profileSettings = await getProfileSettings(req.user._id);
+    const aiConfig = await getAiConfig(req.user._id);
 
     // Allow optional recruiterIds in body
     const { recruiterIds } = req.body || {};
@@ -182,7 +196,7 @@ router.post('/generate-bulk', async (req, res) => {
       return res.status(200).json({
         message: 'All recruiters already have generated emails.',
         generated: 0,
-        total: allRecruiters.length,
+        total: targetRecruiters.length,
       });
     }
 
@@ -190,9 +204,9 @@ router.post('/generate-bulk', async (req, res) => {
 
     for (const recruiter of pendingRecruiters) {
       try {
-        const companyResearch = await ai.researchCompany(recruiter.company || 'Unknown Company');
-        const generatedEmail = await ai.generateEmail(resume.parsed, companyResearch, recruiter, profileSettings);
-        const sendTimeInfo = await ai.suggestSendTime(recruiter.company, recruiter);
+        const companyResearch = await ai.researchCompany(recruiter.company || 'Unknown Company', aiConfig);
+        const generatedEmail = await ai.generateEmail(resume.parsed, companyResearch, recruiter, profileSettings, aiConfig);
+        const sendTimeInfo = await ai.suggestSendTime(recruiter.company, recruiter, aiConfig);
 
         await Application.create({
           userId: req.user._id,

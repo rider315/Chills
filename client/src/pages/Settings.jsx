@@ -17,8 +17,12 @@ export default function Settings() {
     linkedinUrl: '',
     portfolioUrl: '',
     otherLinks: [],
+    aiProvider: 'openrouter',
+    geminiApiKey: '',
+    geminiApiKeyConfigured: false,
   });
   const [showSmtpPass, setShowSmtpPass] = useState(false);
+  const [showGeminiKey, setShowGeminiKey] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testingSmtp, setTestingSmtp] = useState(false);
@@ -43,6 +47,9 @@ export default function Settings() {
         linkedinUrl: data.linkedinUrl || '',
         portfolioUrl: data.portfolioUrl || '',
         otherLinks: data.otherLinks || [],
+        aiProvider: data.aiProvider || 'openrouter',
+        geminiApiKey: data.geminiApiKey || '',
+        geminiApiKeyConfigured: data.geminiApiKeyConfigured || false,
       });
     } catch (err) {
       // Settings might not exist yet — that's OK
@@ -212,6 +219,95 @@ export default function Settings() {
                 {testingSmtp ? '⏳ Testing...' : '🔌 Test Connection'}
               </button>
             </div>
+          </form>
+        </div>
+
+        {/* AI Provider Configuration */}
+        <div className="card-neo bg-bw border-4 p-6 flex flex-col gap-6">
+          <div className="flex items-center gap-4 border-b-4 border-border pb-4">
+            <span className="text-4xl">🤖</span>
+            <div>
+              <h2 className="text-2xl font-black">AI Provider</h2>
+              <p className="font-bold opacity-70 text-sm">Choose which AI model generates your emails</p>
+            </div>
+          </div>
+          <form onSubmit={handleSaveSettings} className="flex flex-col gap-4">
+
+            {/* Provider Toggle */}
+            <div className="flex flex-col gap-2">
+              <label className="font-black uppercase tracking-widest text-xs opacity-70">Active Provider</label>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  className={`flex-1 py-3 px-4 border-4 border-border font-black text-sm uppercase tracking-wider transition-all ${
+                    settings.aiProvider === 'openrouter'
+                      ? 'bg-neo-blue text-bw shadow-neosm -translate-y-0.5'
+                      : 'bg-gray-100 hover:bg-gray-200'
+                  }`}
+                  onClick={() => setSettings({ ...settings, aiProvider: 'openrouter' })}
+                >
+                  🆓 OpenRouter
+                  <span className="block text-xs font-bold mt-1 normal-case tracking-normal opacity-80">
+                    Free tier
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className={`flex-1 py-3 px-4 border-4 border-border font-black text-sm uppercase tracking-wider transition-all ${
+                    settings.aiProvider === 'gemini'
+                      ? 'bg-neo-green text-bw shadow-neosm -translate-y-0.5'
+                      : 'bg-gray-100 hover:bg-gray-200'
+                  }`}
+                  onClick={() => setSettings({ ...settings, aiProvider: 'gemini' })}
+                >
+                  ✨ Gemini
+                  <span className="block text-xs font-bold mt-1 normal-case tracking-normal opacity-80">
+                    Paid • Better quality
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Gemini API Key */}
+            <div className={`flex flex-col gap-1 transition-all ${settings.aiProvider !== 'gemini' ? 'opacity-50 pointer-events-none' : ''}`}>
+              <label className="font-black uppercase tracking-widest text-xs opacity-70">Gemini API Key</label>
+              <div className="relative">
+                <input
+                  type={showGeminiKey ? 'text' : 'password'}
+                  className="input-neo w-full pr-12"
+                  value={settings.geminiApiKey}
+                  onChange={(e) => setSettings({ ...settings, geminiApiKey: e.target.value })}
+                  placeholder="Enter your Gemini API key..."
+                />
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xl opacity-70 hover:opacity-100 transition-opacity"
+                  onClick={() => setShowGeminiKey(!showGeminiKey)}
+                >
+                  {showGeminiKey ? '🙈' : '👁️'}
+                </button>
+              </div>
+              <span className="text-xs font-bold opacity-60 mt-1">
+                Get your API key from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-neo-blue underline">Google AI Studio</a>
+              </span>
+            </div>
+
+            {/* Status indicator */}
+            <div className="flex items-center gap-2 p-3 bg-gray-50 border-2 border-border rounded-base">
+              <span className={`w-3 h-3 rounded-full ${settings.aiProvider === 'gemini' && settings.geminiApiKeyConfigured ? 'bg-green-500' : settings.aiProvider === 'openrouter' ? 'bg-neo-blue' : 'bg-yellow-500'}`}></span>
+              <span className="font-bold text-sm">
+                {settings.aiProvider === 'gemini'
+                  ? (settings.geminiApiKeyConfigured
+                    ? 'Gemini is active — using paid model for better quality emails'
+                    : 'Gemini selected — enter and save your API key to activate')
+                  : 'OpenRouter is active — using free AI models'
+                }
+              </span>
+            </div>
+
+            <button type="submit" className="btn-neo btn-neo-green mt-2" disabled={saving}>
+              {saving ? 'Saving...' : 'Save AI Settings'}
+            </button>
           </form>
         </div>
 

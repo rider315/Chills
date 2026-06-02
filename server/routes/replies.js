@@ -1,5 +1,5 @@
 const express = require('express');
-const { Application, Resume } = require('../models');
+const { Application, Resume, Settings } = require('../models');
 const ai = require('../services/ai');
 
 const router = express.Router();
@@ -25,8 +25,15 @@ router.post('/:applicationId', async (req, res) => {
     const resume = await Resume.findOne({ userId: req.user._id });
     const profile = resume ? resume.parsed || {} : {};
 
+    // Get AI provider config
+    const settings = await Settings.getForUser(req.user._id);
+    const aiConfig = {
+      provider: settings.aiProvider || 'openrouter',
+      geminiApiKey: settings.geminiApiKey || '',
+    };
+
     // Analyze the reply with AI
-    const analysis = await ai.analyzeReply(application.generatedEmail, replyText, profile);
+    const analysis = await ai.analyzeReply(application.generatedEmail, replyText, profile, aiConfig);
 
     // Build the reply record
     const reply = {

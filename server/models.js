@@ -98,6 +98,9 @@ const settingsSchema = new mongoose.Schema({
     label: { type: String, default: '' },
     url: { type: String, default: '' },
   }],
+  // AI Provider settings
+  aiProvider: { type: String, enum: ['openrouter', 'gemini'], default: 'openrouter' },
+  geminiApiKey: { type: String, default: '' },
 }, { timestamps: true });
 
 /**

@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const config = require('../config');
-const { Resume } = require('../models');
+const { Resume, Settings } = require('../models');
 const { parsePDF } = require('../services/fileParser');
 const ai = require('../services/ai');
 
@@ -47,8 +47,15 @@ router.post('/upload', upload.single('resume'), async (req, res) => {
       return res.status(400).json({ error: 'Could not extract text from the PDF. The file may be image-based or empty.' });
     }
 
+    // Get AI provider config
+    const settings = await Settings.getForUser(req.user._id);
+    const aiConfig = {
+      provider: settings.aiProvider || 'openrouter',
+      geminiApiKey: settings.geminiApiKey || '',
+    };
+
     // Parse resume with AI
-    const parsed = await ai.parseResume(text);
+    const parsed = await ai.parseResume(text, aiConfig);
 
     // Upsert resume in database (only keep one resume per user)
     let resume = await Resume.findOne({ userId: req.user._id });
