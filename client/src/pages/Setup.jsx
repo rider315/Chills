@@ -154,7 +154,7 @@ export default function Setup() {
         setSelectedRecruiters([]);
         toast.info(`Removed ${selectedRecruiters.length} recruiter(s)`);
       } catch (err) {
-        toast.error(err.message || 'Failed to bulk delete recruiters');
+        toast.error(err.message || 'Failed to delete selected recruiters');
       }
     } else if (type === 'all') {
       const allIds = recruiters.map(r => r.id || r._id);

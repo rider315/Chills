@@ -91,7 +91,7 @@ export default function Pricing() {
             <li className="flex items-center gap-2">✅ Basic Resume Parsing</li>
             <li className="flex items-center gap-2">✅ Web Dashboard</li>
             <li className="flex items-center gap-2 opacity-50">❌ Unlimited Emails</li>
-            <li className="flex items-center gap-2 opacity-50">❌ Bulk Sending</li>
+            <li className="flex items-center gap-2 opacity-50">❌ Batch Sending</li>
           </ul>
 
           <button className="btn-neo bg-gray-200 text-gray-500 cursor-not-allowed mt-auto" disabled>
@@ -123,8 +123,8 @@ export default function Pricing() {
           
           <ul className="flex flex-col gap-4 mb-8 font-bold">
             <li className="flex items-center gap-2">🌟 Unlimited AI Emails</li>
-            <li className="flex items-center gap-2">🌟 Bulk Email Generation</li>
-            <li className="flex items-center gap-2">🌟 One-Click Bulk Sending</li>
+            <li className="flex items-center gap-2">🌟 Multi-Profile Email Generation</li>
+            <li className="flex items-center gap-2">🌟 One-Click Batch Sending</li>
             <li className="flex items-center gap-2">🌟 Priority Processing</li>
             <li className="flex items-center gap-2">🌟 Early Access to Features</li>
           </ul>

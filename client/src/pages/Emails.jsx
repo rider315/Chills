@@ -162,7 +162,7 @@ export default function Emails() {
 
     setGeneratingBulk(false);
     setBulkProgress({ active: false, type: '', current: 0, total: 0, company: '' });
-    toast.success(`Bulk generation complete! Generated: ${generated}, Failed: ${failed}`);
+    toast.success(`Batch generation complete! Generated: ${generated}, Failed: ${failed}`);
   };
 
   const handleSendBulk = async (useSelection = false) => {
@@ -218,7 +218,7 @@ export default function Emails() {
 
     setSendingBulk(false);
     setBulkProgress({ active: false, type: '', current: 0, total: 0, company: '' });
-    toast.success(`Bulk sending complete! Sent: ${sent}, Failed: ${failed}`);
+    toast.success(`Batch sending complete! Sent: ${sent}, Failed: ${failed}`);
     fetchData(); // Refresh usage stats
   };
 

@@ -374,7 +374,7 @@ function Features() {
     { emoji: '🤖', title: 'AI-Powered Emails', desc: 'Sector-aware emails that match your skills to what the company is hiring for.', bg: 'bg-neo-purple', text: 'text-bw' },
     { emoji: '📊', title: 'Smart Dashboard', desc: 'Track applications, sent emails, replies, and interviews in one place.', bg: 'bg-neo-blue', text: 'text-bw' },
     { emoji: '⏰', title: 'Optimal Send Times', desc: 'AI suggests the best time to send based on recruiter behavior patterns.', bg: 'bg-neo-yellow', text: 'text-text' },
-    { emoji: '🔄', title: 'Bulk Generation', desc: 'Generate emails for 100+ recruiters in one click. Scale your outreach.', bg: 'bg-neo-green', text: 'text-text' },
+    { emoji: '🔄', title: 'Smart Batching', desc: 'Generate emails for 100+ recruiters in one click. Scale your outreach.', bg: 'bg-neo-green', text: 'text-text' },
     { emoji: '💬', title: 'Reply Analysis', desc: 'AI analyzes recruiter replies and suggests your best response.', bg: 'bg-neo-teal', text: 'text-bw' },
     { emoji: '🎯', title: 'Startup Spotlight', desc: 'Highlights your startup experience and flagship projects automatically.', bg: 'bg-neo-red', text: 'text-bw' },
   ];
@@ -421,7 +421,7 @@ function Testimonials() {
     {
       name: 'James Okafor',
       role: 'PM @ Stripe',
-      quote: "The bulk generation is a game-changer. What used to take me an entire weekend now takes 10 minutes. Plus the emails actually sound like ME, not a robot.",
+      quote: "The batch generation is a game-changer. What used to take me an entire weekend now takes 10 minutes. Plus the emails actually sound like ME, not a robot.",
       avatar: '👨‍💼',
       bg: 'bg-neo-yellow',
     },

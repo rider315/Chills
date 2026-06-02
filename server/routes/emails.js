@@ -230,13 +230,13 @@ router.post('/generate-bulk', async (req, res) => {
     const total = await Application.countDocuments({ userId: req.user._id });
 
     return res.status(200).json({
-      message: `Bulk generation complete. Generated: ${results.generated}, Failed: ${results.failed}.`,
+      message: `Batch generation complete. Generated: ${results.generated}, Failed: ${results.failed}.`,
       ...results,
       total,
     });
   } catch (error) {
     console.error('Bulk generate error:', error);
-    return res.status(500).json({ error: `Bulk generation failed: ${error.message}` });
+    return res.status(500).json({ error: `Batch generation failed: ${error.message}` });
   }
 });
 
@@ -487,7 +487,7 @@ router.post('/send-bulk', async (req, res) => {
     }
 
     return res.status(200).json({
-      message: `Bulk sending complete. Sent: ${results.sent}, Failed: ${results.failed}.`,
+      message: `Batch sending complete. Sent: ${results.sent}, Failed: ${results.failed}.`,
       ...results,
     });
   } catch (error) {
