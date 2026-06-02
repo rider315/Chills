@@ -99,13 +99,27 @@ export default function Pricing() {
           </button>
         </div>
 
-        {/* Premium Tier */}
-        <div className="card-neo flex flex-col p-8 w-full max-w-sm bg-bw border-4 shadow-neolg scale-105">
-          <div className="bg-neo-red text-bw text-xs font-black uppercase tracking-widest px-3 py-1 self-start rounded-full border-2 border-border mb-4 -mt-4 -ml-4 shadow-neosm">
-            Most Popular
+        {/* Premium Tier — Limited Offer */}
+        <div className="card-neo flex flex-col p-8 w-full max-w-sm bg-bw border-4 shadow-neolg scale-105 relative overflow-hidden">
+          {/* Offer ribbon */}
+          <div className="absolute top-4 -right-10 bg-neo-red text-bw text-xs font-black uppercase tracking-wider px-10 py-1.5 rotate-45 border-2 border-border shadow-neosm">
+            80% OFF
+          </div>
+
+          <div className="bg-neo-yellow text-text text-xs font-black uppercase tracking-widest px-3 py-1 self-start rounded-full border-2 border-border mb-4 -mt-4 -ml-4 shadow-neosm animate-pulse">
+            🔥 Launch Offer
           </div>
           <h3 className="text-2xl font-black uppercase tracking-widest text-neo-purple mb-2">Premium</h3>
-          <div className="text-5xl font-black mb-6">₹499<span className="text-xl font-bold opacity-60">/mo</span></div>
+          
+          {/* Price with strikethrough */}
+          <div className="flex items-baseline gap-3 mb-2">
+            <span className="text-2xl font-bold line-through opacity-40">₹499</span>
+            <span className="text-5xl font-black text-neo-purple">₹99</span>
+            <span className="text-xl font-bold opacity-60">/mo</span>
+          </div>
+          <p className="text-sm font-bold text-neo-red mb-6 flex items-center gap-1">
+            ⏳ Limited period offer — price goes back to ₹499 soon!
+          </p>
           
           <ul className="flex flex-col gap-4 mb-8 font-bold">
             <li className="flex items-center gap-2">🌟 Unlimited AI Emails</li>
@@ -120,8 +134,9 @@ export default function Pricing() {
             onClick={handleSubscribe} 
             disabled={loading || user?.tier === 'premium'}
           >
-            {loading ? 'Loading...' : user?.tier === 'premium' ? 'Active Subscription' : 'Upgrade Now 🚀'}
+            {loading ? 'Loading...' : user?.tier === 'premium' ? 'Active Subscription' : 'Get it for ₹99 🚀'}
           </button>
+          <p className="text-center text-xs font-bold opacity-50 mt-2">Cancel anytime · No questions asked</p>
         </div>
 
       </div>

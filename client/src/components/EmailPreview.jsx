@@ -44,22 +44,89 @@ export default function EmailPreview({
     setEditing(false);
   };
 
+  // --- Animated progress steps for email generation ---
+  const [genStep, setGenStep] = useState(0);
+  useEffect(() => {
+    if (!loading) { setGenStep(0); return; }
+    setGenStep(0);
+    const timers = [
+      setTimeout(() => setGenStep(1), 1800),
+      setTimeout(() => setGenStep(2), 4500),
+      setTimeout(() => setGenStep(3), 8000),
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, [loading]);
+
+  const GEN_STEPS = [
+    { emoji: '🔍', label: 'Researching company...', color: 'bg-neo-yellow' },
+    { emoji: '📄', label: 'Analyzing your resume...', color: 'bg-neo-teal' },
+    { emoji: '✍️', label: 'Crafting personalized email...', color: 'bg-neo-blue' },
+    { emoji: '✨', label: 'Polishing final draft...', color: 'bg-neo-green' },
+  ];
+
   if (loading) {
+    const progress = ((genStep + 1) / GEN_STEPS.length) * 100;
     return (
       <div className="card-neo flex flex-col h-full bg-bw p-6 border-4">
-        <div className="animate-pulse flex flex-col gap-4">
-          <div className="h-8 bg-gray-200 rounded w-1/2 border-2 border-border mb-4" />
-          <div className="h-4 bg-gray-200 rounded w-3/4 border-2 border-border" />
-          <div className="h-4 bg-gray-200 rounded w-5/6 border-2 border-border" />
-          <div className="h-4 bg-gray-200 rounded w-2/3 border-2 border-border" />
-          <div className="h-10 mt-4" />
-          <div className="h-4 bg-gray-200 rounded w-full border-2 border-border" />
-          <div className="h-4 bg-gray-200 rounded w-4/5 border-2 border-border" />
-          <div className="h-4 bg-gray-200 rounded w-1/2 border-2 border-border" />
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-6">
+          <span className="text-3xl">⚙️</span>
+          <div>
+            <h3 className="text-xl font-black">Generating Email</h3>
+            <p className="text-sm font-bold opacity-70">
+              for <span className="text-neo-blue">{recruiter?.company || 'recruiter'}</span>
+            </p>
+          </div>
         </div>
-        <div className="mt-auto flex items-center justify-center gap-3 p-4 bg-neo-yellow border-2 border-border rounded-base shadow-neosm">
-          <span className="text-xl animate-spin">⏳</span>
-          <span className="font-black text-lg">AI is crafting your email…</span>
+
+        {/* Progress bar */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-black uppercase tracking-wider opacity-70">Progress</span>
+            <span className="text-sm font-black">{Math.round(progress)}%</span>
+          </div>
+          <div className="h-5 bg-gray-100 border-2 border-border rounded-full overflow-hidden">
+            <div
+              className={`h-full ${GEN_STEPS[genStep].color} transition-all duration-700 ease-out rounded-full`}
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Steps */}
+        <div className="flex flex-col gap-3 flex-1">
+          {GEN_STEPS.map((step, i) => {
+            const isDone = i < genStep;
+            const isActive = i === genStep;
+            return (
+              <div
+                key={i}
+                className={`flex items-center gap-3 p-3 rounded-base border-2 transition-all duration-300 ${
+                  isActive
+                    ? 'border-border shadow-neosm ' + step.color + ' -translate-x-1 -translate-y-1'
+                    : isDone
+                    ? 'border-border bg-gray-50 opacity-60'
+                    : 'border-gray-200 bg-gray-50 opacity-30'
+                }`}
+              >
+                <span className="text-2xl flex-shrink-0">
+                  {isDone ? '✅' : isActive ? step.emoji : '⬜'}
+                </span>
+                <span className={`font-bold text-sm ${isActive ? 'text-text' : ''}`}>
+                  {step.label}
+                </span>
+                {isActive && (
+                  <span className="ml-auto text-lg animate-spin">⏳</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Bottom tip */}
+        <div className="mt-6 flex items-center justify-center gap-2 p-3 bg-neo-yellow border-2 border-border rounded-base shadow-neosm">
+          <span className="text-lg">💡</span>
+          <span className="font-bold text-sm">This usually takes 10-20 seconds</span>
         </div>
       </div>
     );
