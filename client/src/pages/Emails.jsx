@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { get, post, put } from '../utils/api';
 import { useToast } from '../components/Toast';
 import EmailPreview from '../components/EmailPreview';
@@ -25,6 +26,7 @@ function normalizeEmail(data) {
 
 export default function Emails() {
   const toast = useToast();
+  const navigate = useNavigate();
   const [recruiters, setRecruiters] = useState([]);
   const [selectedRecruiter, setSelectedRecruiter] = useState(null);
   const [email, setEmail] = useState(null);
@@ -63,7 +65,7 @@ export default function Emails() {
   };
 
   const handleUpgrade = () => {
-    window.location.href = '/pricing';
+    navigate('/pricing');
   };
 
   const handleSelectRecruiter = async (recruiter) => {

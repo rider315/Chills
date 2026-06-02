@@ -18,17 +18,24 @@ function createTransport(smtpConfig) {
 /**
  * Send an email using the provided transport.
  * @param {object} transport - Nodemailer transport
- * @param {object} options - { from, to, subject, body, attachments? }
+ * @param {object} options - { from, to, subject, body, attachments?, trackingPixelUrl? }
  *   attachments is an optional array of { filename, path } objects.
+ *   trackingPixelUrl is an optional absolute URL for the tracking pixel.
  */
-async function sendEmail(transport, { from, to, subject, body, attachments }) {
+async function sendEmail(transport, { from, to, subject, body, attachments, trackingPixelUrl }) {
   try {
+    // Build HTML: convert newlines to <br>, then append the invisible tracking pixel
+    let htmlBody = body.replace(/\n/g, '<br>');
+    if (trackingPixelUrl) {
+      htmlBody += `<img src="${trackingPixelUrl}" width="1" height="1" alt="" style="display:none;visibility:hidden;" />`;
+    }
+
     const mailOptions = {
       from,
       to,
       subject,
       text: body,
-      html: body.replace(/\n/g, '<br>'),
+      html: htmlBody,
     };
 
     // Attach files if provided

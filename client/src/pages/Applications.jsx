@@ -9,6 +9,7 @@ import { STATUS_STAGES, STATUS_LABELS, STATUS_ICONS } from '../utils/constants';
 export default function Applications() {
   const toast = useToast();
   const [applications, setApplications] = useState([]);
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('pipeline');
   const [search, setSearch] = useState('');
@@ -25,8 +26,12 @@ export default function Applications() {
   const fetchApplications = async () => {
     setLoading(true);
     try {
-      const data = await get('/api/applications');
+      const [data, statsData] = await Promise.all([
+        get('/api/applications'),
+        get('/api/applications/stats').catch(() => null),
+      ]);
       setApplications(data?.applications || data || []);
+      setStats(statsData?.stats || null);
     } catch (err) {
       toast.error('Failed to load applications');
     } finally {
@@ -36,13 +41,25 @@ export default function Applications() {
 
   const handleStatusChange = async (appId, newStatus) => {
     try {
-      await put(`/api/applications/${appId}/status`, { status: newStatus });
+      // Optimistically update local state first
+      const app = applications.find((a) => (a.id || a._id) === appId);
+      const oldStatus = app?.status || 'draft';
       setApplications((prev) =>
         prev.map((a) => ((a.id || a._id) === appId ? { ...a, status: newStatus } : a))
       );
+      setStats((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          [oldStatus]: Math.max(0, (prev[oldStatus] || 0) - 1),
+          [newStatus]: (prev[newStatus] || 0) + 1,
+        };
+      });
+      await put(`/api/applications/${appId}/status`, { status: newStatus });
       toast.success(`Status updated to ${STATUS_LABELS[newStatus]}`);
     } catch (err) {
       toast.error(err.message || 'Failed to update status');
+      fetchApplications(); // Re-sync on error
     }
   };
 
@@ -93,7 +110,7 @@ export default function Applications() {
           <h1 className="text-4xl md:text-5xl font-black mb-2">
             <span className="bg-neo-green text-text px-2 inline-block -rotate-1 border-2 border-border shadow-neosm">Applications</span> 📋
           </h1>
-          <p className="text-xl font-bold opacity-80 mt-4">{applications.length} total application{applications.length !== 1 ? 's' : ''}</p>
+          <p className="text-xl font-bold opacity-80 mt-4">{stats?.total ?? applications.length} total application{(stats?.total ?? applications.length) !== 1 ? 's' : ''}</p>
         </div>
         <div className="flex gap-4 border-4 border-border rounded-base p-1 bg-bw shadow-neosm w-max">
           <button
@@ -110,6 +127,33 @@ export default function Applications() {
           </button>
         </div>
       </div>
+
+      {/* Live Tracking Stats Bar */}
+      {!loading && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {[
+            { key: 'sent',      icon: '✉️',  label: 'Sent',      bg: 'bg-bw',           border: 'border-border' },
+            { key: 'viewed',    icon: '👀',  label: 'Viewed',    bg: 'bg-neo-yellow',   border: 'border-border' },
+            { key: 'interview', icon: '🎯',  label: 'Interview', bg: 'bg-neo-purple',   border: 'border-border', text: 'text-bw' },
+            { key: 'rejected',  icon: '❌',  label: 'Rejected',  bg: 'bg-neo-red',      border: 'border-border', text: 'text-bw' },
+            { key: 'offer',     icon: '🎉',  label: 'Offer',     bg: 'bg-neo-green',    border: 'border-border' },
+            { key: 'draft',     icon: '📝',  label: 'Draft',     bg: 'bg-gray-100',     border: 'border-border' },
+          ].map(({ key, icon, label, bg, border, text }) => {
+            const count = stats?.[key] ?? applications.filter((a) => (a.status || 'draft') === key).length;
+            return (
+              <button
+                key={key}
+                onClick={() => setStatusFilter(statusFilter === key ? 'all' : key)}
+                className={`card-neo ${bg} ${border} ${text || 'text-text'} border-4 p-4 flex flex-col items-center gap-1 cursor-pointer hover:-translate-y-1 hover:shadow-neohover transition-all ${statusFilter === key ? 'shadow-neohover -translate-y-1' : ''}`}
+              >
+                <span className="text-2xl">{icon}</span>
+                <span className="text-3xl font-black leading-none">{count}</span>
+                <span className="text-xs font-black uppercase tracking-widest opacity-80">{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-col md:flex-row gap-4 items-center">
@@ -174,6 +218,9 @@ export default function Applications() {
                   <th className="p-4 font-black uppercase tracking-widest whitespace-nowrap cursor-pointer hover:bg-gray-200" onClick={() => handleSort('sentAt')}>
                     Sent {sortField === 'sentAt' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                   </th>
+                  <th className="p-4 font-black uppercase tracking-widest whitespace-nowrap cursor-pointer hover:bg-gray-200" onClick={() => handleSort('viewedAt')}>
+                    👀 Opened {sortField === 'viewedAt' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                  </th>
                   <th className="p-4 font-black uppercase tracking-widest whitespace-nowrap cursor-pointer hover:bg-gray-200" onClick={() => handleSort('updatedAt')}>
                     Updated {sortField === 'updatedAt' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                   </th>
@@ -202,6 +249,12 @@ export default function Applications() {
                     </td>
                     <td className={`p-4 font-bold ${selectedApp && (selectedApp.id || selectedApp._id) === (app.id || app._id) ? 'opacity-90' : 'opacity-70'}`}>
                       {formatDate(app.sentAt)}
+                    </td>
+                    <td className={`p-4 font-bold ${selectedApp && (selectedApp.id || selectedApp._id) === (app.id || app._id) ? 'opacity-90' : 'opacity-70'}`}>
+                      {app.viewedAt
+                        ? <span className="text-neo-yellow font-black">👀 {formatDate(app.viewedAt)}</span>
+                        : <span className="opacity-40">—</span>
+                      }
                     </td>
                     <td className={`p-4 font-bold ${selectedApp && (selectedApp.id || selectedApp._id) === (app.id || app._id) ? 'opacity-90' : 'opacity-70'}`}>
                       {formatDate(app.updatedAt)}

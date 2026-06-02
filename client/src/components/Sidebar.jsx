@@ -48,7 +48,7 @@ export default function Sidebar({ collapsed, onToggle }) {
             to={item.path}
             end={item.path === '/'}
             className={({ isActive }) =>
-              `flex items-center gap-3 rounded-base border-2 border-border transition-all whitespace-nowrap overflow-hidden ${collapsed ? 'w-12 h-12 justify-center p-0' : 'p-3'} ${isActive ? 'bg-neo-blue text-bw shadow-neo -translate-y-1 -translate-x-1' : 'bg-bw text-text hover:bg-gray-100 hover:shadow-neosm hover:-translate-y-0.5 hover:-translate-x-0.5'}`
+              `nav-tour-${item.label.toLowerCase()} flex items-center gap-3 rounded-base border-2 border-border transition-all whitespace-nowrap overflow-hidden ${collapsed ? 'w-12 h-12 justify-center p-0' : 'p-3'} ${isActive ? 'bg-neo-blue text-bw shadow-neo -translate-y-1 -translate-x-1' : 'bg-bw text-text hover:bg-gray-100 hover:shadow-neosm hover:-translate-y-0.5 hover:-translate-x-0.5'}`
             }
             title={collapsed ? item.label : undefined}
           >
@@ -67,12 +67,20 @@ export default function Sidebar({ collapsed, onToggle }) {
               {user.tier === 'premium' && <span className="ml-1 text-neo-yellow">★</span>}
             </div>
           )}
-          <button 
-            onClick={handleLogout}
-            className="w-full btn-neo btn-neo-white text-xs py-1.5"
-          >
-            Log Out
-          </button>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => window.dispatchEvent(new Event('start-global-tour'))}
+              className="flex-1 btn-neo btn-neo-yellow text-xs py-1.5"
+            >
+              🧭 Tour
+            </button>
+            <button 
+              onClick={handleLogout}
+              className="flex-1 btn-neo btn-neo-white text-xs py-1.5"
+            >
+              Log Out
+            </button>
+          </div>
         </div>
       ) : (
         <div className="p-2 border-t-4 border-border bg-neo-green flex justify-center items-center">

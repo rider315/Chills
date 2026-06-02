@@ -345,6 +345,7 @@ router.post('/:applicationId/send', async (req, res) => {
       subject: application.generatedEmail.subject,
       body: application.generatedEmail.body,
       attachments,
+      trackingPixelUrl: `${config.appUrl}/track/open/${application._id}`,
     });
 
     if (!result.success) {
@@ -460,6 +461,7 @@ router.post('/send-bulk', async (req, res) => {
           subject: app.generatedEmail.subject,
           body: app.generatedEmail.body,
           attachments,
+          trackingPixelUrl: `${config.appUrl}/track/open/${app._id}`,
         });
 
         if (result.success) {

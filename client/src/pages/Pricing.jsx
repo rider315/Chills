@@ -87,7 +87,7 @@ export default function Pricing() {
           <div className="text-5xl font-black mb-6">₹0<span className="text-xl font-bold opacity-60">/mo</span></div>
           
           <ul className="flex flex-col gap-4 mb-8 font-medium">
-            <li className="flex items-center gap-2">✅ 10 AI-Generated Emails</li>
+            <li className="flex items-center gap-2">✅ 5 AI-Generated Emails</li>
             <li className="flex items-center gap-2">✅ Basic Resume Parsing</li>
             <li className="flex items-center gap-2">✅ Web Dashboard</li>
             <li className="flex items-center gap-2 opacity-50">❌ Unlimited Emails</li>

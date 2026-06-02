@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '../components/Toast';
 import { get, put, post } from '../utils/api';
+import { Joyride, STATUS } from 'react-joyride';
 
 export default function Settings() {
   const toast = useToast();
@@ -26,6 +27,86 @@ export default function Settings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testingSmtp, setTestingSmtp] = useState(false);
+  const [runTour, setRunTour] = useState(false);
+  const [tourKey, setTourKey] = useState(0);
+
+  const tourSteps = [
+    {
+      target: '.tour-email-config',
+      content: (
+        <div>
+          <h3 className="font-black mb-2 text-lg">Email Configuration 📧</h3>
+          <p>Here you set up SMTP so Chills can send emails directly from your account.</p>
+        </div>
+      ),
+      skipBeacon: true,
+    },
+    {
+      target: '.tour-app-password',
+      skipBeacon: true,
+      content: (
+        <div>
+          <h3 className="font-black mb-2 text-lg">Google App Password 🔑</h3>
+          <p className="mb-2">For Gmail, you <strong>cannot</strong> use your regular password.</p>
+          <ol className="list-decimal pl-4 space-y-1 text-sm text-left">
+            <li>Go to your Google Account Settings</li>
+            <li>Search for "App passwords"</li>
+            <li>Create a new app password (e.g., name it "Chills")</li>
+            <li>Copy the 16-character password and paste it here!</li>
+          </ol>
+        </div>
+      ),
+    },
+    {
+      target: '.tour-ai-provider',
+      skipBeacon: true,
+      content: (
+        <div>
+          <h3 className="font-black mb-2 text-lg">AI Provider 🤖</h3>
+          <p>By default, Chills uses OpenRouter to generate your emails. This section is locked for now.</p>
+        </div>
+      ),
+    },
+    {
+      target: '.tour-profile',
+      skipBeacon: true,
+      content: (
+        <div>
+          <h3 className="font-black mb-2 text-lg">Your Profile 👤</h3>
+          <p>Add your name, email, and phone number. This info will be used in your email signature.</p>
+        </div>
+      ),
+    },
+    {
+      target: '.tour-links',
+      skipBeacon: true,
+      content: (
+        <div>
+          <h3 className="font-black mb-2 text-lg">Profile Links 🔗</h3>
+          <p>Add your LinkedIn, Portfolio, or any other links so recruiters can easily check out your work.</p>
+        </div>
+      ),
+    }
+  ];
+
+  const handleJoyrideEvent = (data) => {
+    const { status } = data;
+    if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
+      setRunTour(false);
+    }
+  };
+
+  const startTour = () => {
+    // 1. Stop any running tour and bump the key
+    setRunTour(false);
+    setTourKey(k => k + 1);
+    // 2. Wait for React to unmount the old Joyride, then start fresh
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setRunTour(true);
+      });
+    });
+  };
 
   useEffect(() => {
     loadSettings();
@@ -136,17 +217,76 @@ export default function Settings() {
 
   return (
     <div className="flex flex-col gap-8 animate-fadeIn h-full max-w-5xl mx-auto">
+      <Joyride
+        key={tourKey}
+        steps={tourSteps}
+        run={runTour}
+        continuous={true}
+        buttons={['back', 'primary', 'skip']}
+        onEvent={handleJoyrideEvent}
+        options={{
+          showProgress: true,
+          hideOverlayClose: true,
+          zIndex: 10000,
+        }}
+        styles={{
+          tooltipContainer: {
+            textAlign: 'left'
+          },
+          tooltip: {
+            border: '4px solid #000',
+            borderRadius: '0px',
+            boxShadow: '4px 4px 0 0 rgba(0,0,0,1)',
+            padding: '20px',
+            backgroundColor: '#ffffff',
+            color: '#000000',
+          },
+          buttonNext: {
+            backgroundColor: '#75FA92',
+            border: '2px solid #000',
+            borderRadius: '4px',
+            color: '#000',
+            fontWeight: '900',
+            boxShadow: '2px 2px 0 0 rgba(0,0,0,1)',
+          },
+          buttonBack: {
+            color: '#000',
+            fontWeight: 'bold',
+            marginRight: '10px'
+          },
+          buttonSkip: {
+            color: '#c31d1d',
+            fontWeight: 'bold',
+          },
+        }}
+      />
       <div className="flex flex-col border-b-4 border-border pb-6">
-        <h1 className="text-4xl md:text-5xl font-black mb-2">
-          <span className="bg-neo-red text-bw px-2 inline-block -rotate-1 border-2 border-border shadow-neosm">Settings</span> ⚙️
-        </h1>
-        <p className="text-xl font-bold opacity-80 mt-4">Configure your API keys, email settings, profile, and links</p>
+        <div className="flex justify-between items-start">
+          <h1 className="text-4xl md:text-5xl font-black mb-2">
+            <span className="bg-neo-red text-bw px-2 inline-block -rotate-1 border-2 border-border shadow-neosm">Settings</span> ⚙️
+          </h1>
+          <button 
+            onClick={startTour}
+            className="btn-neo btn-neo-yellow text-sm py-2 px-4 whitespace-nowrap hidden md:block"
+          >
+            🧭 Take a Tour
+          </button>
+        </div>
+        <div className="flex justify-between items-end mt-4 md:mt-2">
+          <p className="text-xl font-bold opacity-80 mt-4">Configure your API keys, email settings, profile, and links</p>
+          <button 
+            onClick={startTour}
+            className="btn-neo btn-neo-yellow text-sm py-2 px-4 whitespace-nowrap md:hidden"
+          >
+            🧭 Take a Tour
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
 
         {/* SMTP Configuration */}
-        <div className="card-neo bg-bw border-4 p-6 flex flex-col gap-6">
+        <div className="card-neo bg-bw border-4 p-6 flex flex-col gap-6 tour-email-config">
           <div className="flex items-center gap-4 border-b-4 border-border pb-4">
             <span className="text-4xl">📧</span>
             <div>
@@ -186,7 +326,7 @@ export default function Settings() {
                 placeholder="your_email@gmail.com"
               />
             </div>
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1 tour-app-password">
               <label className="font-black uppercase tracking-widest text-xs opacity-70">Password / App Password</label>
               <div className="relative">
                 <input
@@ -222,97 +362,46 @@ export default function Settings() {
           </form>
         </div>
 
-        {/* AI Provider Configuration */}
-        <div className="card-neo bg-bw border-4 p-6 flex flex-col gap-6">
-          <div className="flex items-center gap-4 border-b-4 border-border pb-4">
+        {/* AI Provider Configuration (Locked to OpenRouter) */}
+        <div className="card-neo bg-bw border-4 p-6 flex flex-col gap-6 tour-ai-provider relative overflow-hidden">
+          <div className="flex items-center gap-4 border-b-4 border-border pb-4 z-10">
             <span className="text-4xl">🤖</span>
             <div>
               <h2 className="text-2xl font-black">AI Provider</h2>
-              <p className="font-bold opacity-70 text-sm">Choose which AI model generates your emails</p>
+              <p className="font-bold opacity-70 text-sm">OpenRouter is currently active</p>
             </div>
           </div>
-          <form onSubmit={handleSaveSettings} className="flex flex-col gap-4">
-
-            {/* Provider Toggle */}
-            <div className="flex flex-col gap-2">
-              <label className="font-black uppercase tracking-widest text-xs opacity-70">Active Provider</label>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  className={`flex-1 py-3 px-4 border-4 border-border font-black text-sm uppercase tracking-wider transition-all ${
-                    settings.aiProvider === 'openrouter'
-                      ? 'bg-neo-blue text-bw shadow-neosm -translate-y-0.5'
-                      : 'bg-gray-100 hover:bg-gray-200'
-                  }`}
-                  onClick={() => setSettings({ ...settings, aiProvider: 'openrouter' })}
-                >
-                  🆓 OpenRouter
-                  <span className="block text-xs font-bold mt-1 normal-case tracking-normal opacity-80">
-                    Free tier
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className={`flex-1 py-3 px-4 border-4 border-border font-black text-sm uppercase tracking-wider transition-all ${
-                    settings.aiProvider === 'gemini'
-                      ? 'bg-neo-green text-bw shadow-neosm -translate-y-0.5'
-                      : 'bg-gray-100 hover:bg-gray-200'
-                  }`}
-                  onClick={() => setSettings({ ...settings, aiProvider: 'gemini' })}
-                >
-                  ✨ Gemini
-                  <span className="block text-xs font-bold mt-1 normal-case tracking-normal opacity-80">
-                    Paid • Better quality
-                  </span>
-                </button>
+          
+          <div className="relative z-10 select-none pointer-events-none blur-[2px] opacity-70">
+            <form className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2">
+                <label className="font-black uppercase tracking-widest text-xs opacity-70">Active Provider</label>
+                <div className="flex gap-3">
+                  <button type="button" className="flex-1 py-3 px-4 border-4 border-border font-black text-sm uppercase tracking-wider bg-neo-blue text-bw shadow-neosm -translate-y-0.5">
+                    🆓 OpenRouter
+                  </button>
+                  <button type="button" className="flex-1 py-3 px-4 border-4 border-border font-black text-sm uppercase tracking-wider bg-gray-100">
+                    ✨ Gemini
+                  </button>
+                </div>
               </div>
-            </div>
-
-            {/* Gemini API Key */}
-            <div className={`flex flex-col gap-1 transition-all ${settings.aiProvider !== 'gemini' ? 'opacity-50 pointer-events-none' : ''}`}>
-              <label className="font-black uppercase tracking-widest text-xs opacity-70">Gemini API Key</label>
-              <div className="relative">
-                <input
-                  type={showGeminiKey ? 'text' : 'password'}
-                  className="input-neo w-full pr-12"
-                  value={settings.geminiApiKey}
-                  onChange={(e) => setSettings({ ...settings, geminiApiKey: e.target.value })}
-                  placeholder="Enter your Gemini API key..."
-                />
-                <button
-                  type="button"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xl opacity-70 hover:opacity-100 transition-opacity"
-                  onClick={() => setShowGeminiKey(!showGeminiKey)}
-                >
-                  {showGeminiKey ? '🙈' : '👁️'}
-                </button>
+              <div className="flex flex-col gap-1 opacity-50">
+                <label className="font-black uppercase tracking-widest text-xs opacity-70">Gemini API Key</label>
+                <input type="password" disabled className="input-neo w-full bg-gray-100" value="••••••••••••••••••••••••" />
               </div>
-              <span className="text-xs font-bold opacity-60 mt-1">
-                Get your API key from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-neo-blue underline">Google AI Studio</a>
-              </span>
-            </div>
-
-            {/* Status indicator */}
-            <div className="flex items-center gap-2 p-3 bg-gray-50 border-2 border-border rounded-base">
-              <span className={`w-3 h-3 rounded-full ${settings.aiProvider === 'gemini' && settings.geminiApiKeyConfigured ? 'bg-green-500' : settings.aiProvider === 'openrouter' ? 'bg-neo-blue' : 'bg-yellow-500'}`}></span>
-              <span className="font-bold text-sm">
-                {settings.aiProvider === 'gemini'
-                  ? (settings.geminiApiKeyConfigured
-                    ? 'Gemini is active — using paid model for better quality emails'
-                    : 'Gemini selected — enter and save your API key to activate')
-                  : 'OpenRouter is active — using free AI models'
-                }
-              </span>
-            </div>
-
-            <button type="submit" className="btn-neo btn-neo-green mt-2" disabled={saving}>
-              {saving ? 'Saving...' : 'Save AI Settings'}
-            </button>
-          </form>
+            </form>
+          </div>
+          
+          {/* Overlay to enforce locked state and explain */}
+          <div className="absolute inset-0 bg-white/40 backdrop-blur-[1px] z-20 flex flex-col items-center justify-center pt-16">
+             <div className="bg-bw border-4 border-border p-3 shadow-neosm rounded-base transform -rotate-2">
+               <p className="font-black text-sm">🔒 Locked to OpenRouter</p>
+             </div>
+          </div>
         </div>
 
         {/* User Profile */}
-        <div className="card-neo bg-bw border-4 p-6 flex flex-col gap-6">
+        <div className="card-neo bg-bw border-4 p-6 flex flex-col gap-6 tour-profile">
           <div className="flex items-center gap-4 border-b-4 border-border pb-4">
             <span className="text-4xl">👤</span>
             <div>
@@ -370,7 +459,7 @@ export default function Settings() {
         </div>
 
         {/* Profile Links */}
-        <div className="card-neo bg-bw border-4 p-6 flex flex-col gap-6 md:col-span-2 lg:col-span-1">
+        <div className="card-neo bg-bw border-4 p-6 flex flex-col gap-6 md:col-span-2 lg:col-span-1 tour-links">
           <div className="flex items-center gap-4 border-b-4 border-border pb-4">
             <span className="text-4xl">🔗</span>
             <div>

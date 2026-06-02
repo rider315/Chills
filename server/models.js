@@ -11,6 +11,7 @@ const userSchema = new mongoose.Schema({
   razorpayCustomerId: { type: String, default: null },
   razorpaySubscriptionId: { type: String, default: null },
   subscriptionStatus: { type: String, default: null },
+  hasSeenGlobalTour: { type: Boolean, default: false },
 }, { timestamps: true });
 
 const User = mongoose.model('User', userSchema);
@@ -73,6 +74,7 @@ const applicationSchema = new mongoose.Schema({
   suggestedSendTime: { type: String, default: '' },
   companyResearch: { type: mongoose.Schema.Types.Mixed, default: {} },
   sentAt: { type: Date, default: null },
+  viewedAt: { type: Date, default: null },
   replies: [replySubSchema],
 }, { timestamps: true });
 

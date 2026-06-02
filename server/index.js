@@ -54,11 +54,13 @@ const settingsRoutes = require('./routes/settings');
 const usageRoutes = require('./routes/usage');
 const subscriptionRoutes = require('./routes/subscriptions');
 const webhookRoutes = require('./routes/webhooks');
+const trackingRoutes = require('./routes/tracking');
 const authMiddleware = require('./middleware/auth');
 
 // Public routes
 app.use('/api/auth', authRoutes);
 app.use('/api/webhooks', webhookRoutes);
+app.use('/track', trackingRoutes); // Email open tracking — no auth needed
 
 // Protected routes
 app.use('/api/resume', authMiddleware, resumeRoutes);

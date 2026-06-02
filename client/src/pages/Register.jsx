@@ -18,7 +18,7 @@ export default function Register() {
     try {
       const res = await post('/api/auth/register', { email, password });
       login(res.token, res.user);
-      navigate('/');
+      navigate('/', { state: { isNewUser: true } });
     } catch (err) {
       toast.error(err.message || 'Registration failed');
     } finally {

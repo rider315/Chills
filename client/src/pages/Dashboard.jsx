@@ -94,25 +94,25 @@ export default function Dashboard() {
           {/* Stats */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <StatsCard
-              value={stats?.total || applications.length}
+              value={stats?.stats?.total ?? applications.length}
               label="Total Applications"
               icon="📊"
               color="blue"
             />
             <StatsCard
-              value={stats?.sent || applications.filter((a) => ['sent', 'viewed', 'interview', 'offer'].includes(a.status)).length}
+              value={(stats?.stats?.sent ?? 0) + (stats?.stats?.viewed ?? 0) + (stats?.stats?.interview ?? 0) + (stats?.stats?.offer ?? 0)}
               label="Emails Sent"
               icon="✉️"
               color="violet"
             />
             <StatsCard
-              value={stats?.interviews || applications.filter((a) => a.status === 'interview').length}
+              value={stats?.stats?.interview ?? applications.filter((a) => a.status === 'interview').length}
               label="Interviews"
               icon="🎯"
               color="magenta"
             />
             <StatsCard
-              value={stats?.offers || applications.filter((a) => a.status === 'offer').length}
+              value={stats?.stats?.offer ?? applications.filter((a) => a.status === 'offer').length}
               label="Offers"
               icon="🎉"
               color="green"
