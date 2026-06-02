@@ -105,7 +105,7 @@ export default function Pricing() {
             Most Popular
           </div>
           <h3 className="text-2xl font-black uppercase tracking-widest text-neo-purple mb-2">Premium</h3>
-          <div className="text-5xl font-black mb-6">₹999<span className="text-xl font-bold opacity-60">/mo</span></div>
+          <div className="text-5xl font-black mb-6">₹499<span className="text-xl font-bold opacity-60">/mo</span></div>
           
           <ul className="flex flex-col gap-4 mb-8 font-bold">
             <li className="flex items-center gap-2">🌟 Unlimited AI Emails</li>
