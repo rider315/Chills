@@ -140,7 +140,11 @@ export default function Dashboard() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {recentApps.map((app) => (
-                <div key={app.id || app._id} className="card-neo flex items-center justify-between p-4 cursor-pointer hover:-translate-x-1 hover:-translate-y-1 hover:shadow-neohover transition-all">
+                <div 
+                  key={app.id || app._id} 
+                  className="card-neo flex items-center justify-between p-4 cursor-pointer hover:-translate-x-1 hover:-translate-y-1 hover:shadow-neohover transition-all"
+                  onClick={() => navigate('/applications')}
+                >
                   <div className="flex items-center gap-4">
                     <div className="text-2xl bg-gray-100 p-2 rounded-full border-2 border-border">
                       {app.status === 'offer' ? '🎉' : app.status === 'interview' ? '🎯' : app.status === 'sent' ? '✉️' : '📝'}
