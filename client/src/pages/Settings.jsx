@@ -21,12 +21,14 @@ export default function Settings() {
     aiProvider: 'openrouter',
     geminiApiKey: '',
     geminiApiKeyConfigured: false,
+    geminiApiKeyFromEnv: false,
   });
   const [showSmtpPass, setShowSmtpPass] = useState(false);
   const [showGeminiKey, setShowGeminiKey] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testingSmtp, setTestingSmtp] = useState(false);
+  const [testingGemini, setTestingGemini] = useState(false);
   const [runTour, setRunTour] = useState(false);
   const [tourKey, setTourKey] = useState(0);
 
@@ -63,7 +65,7 @@ export default function Settings() {
       content: (
         <div>
           <h3 className="font-black mb-2 text-lg">AI Provider 🤖</h3>
-          <p>By default, Chills uses OpenRouter to generate your emails. This section is locked for now.</p>
+          <p>Choose between <strong>OpenRouter</strong> (free) or <strong>Gemini</strong> (better quality). You can add your own Gemini API key or use the default one.</p>
         </div>
       ),
     },
@@ -131,6 +133,7 @@ export default function Settings() {
         aiProvider: data.aiProvider || 'openrouter',
         geminiApiKey: data.geminiApiKey || '',
         geminiApiKeyConfigured: data.geminiApiKeyConfigured || false,
+        geminiApiKeyFromEnv: data.geminiApiKeyFromEnv || false,
       });
     } catch (err) {
       // Settings might not exist yet — that's OK
@@ -152,7 +155,23 @@ export default function Settings() {
     }
   }
 
-
+  async function handleTestGemini() {
+    setTestingGemini(true);
+    try {
+      const result = await post('/api/settings/test-gemini', {
+        geminiApiKey: settings.geminiApiKey,
+      });
+      if (result.success) {
+        toast.success('Gemini API connection successful! 🎉');
+      } else {
+        toast.error('Gemini test failed: ' + (result.error || 'Unknown error'));
+      }
+    } catch (err) {
+      toast.error('Gemini test failed: ' + err.message);
+    } finally {
+      setTestingGemini(false);
+    }
+  }
 
   async function handleTestSmtp() {
     setTestingSmtp(true);
@@ -362,42 +381,105 @@ export default function Settings() {
           </form>
         </div>
 
-        {/* AI Provider Configuration (Locked to OpenRouter) */}
-        <div className="card-neo bg-bw border-4 p-6 flex flex-col gap-6 tour-ai-provider relative overflow-hidden">
-          <div className="flex items-center gap-4 border-b-4 border-border pb-4 z-10">
+        {/* AI Provider Configuration */}
+        <div className="card-neo bg-bw border-4 p-6 flex flex-col gap-6 tour-ai-provider">
+          <div className="flex items-center gap-4 border-b-4 border-border pb-4">
             <span className="text-4xl">🤖</span>
             <div>
               <h2 className="text-2xl font-black">AI Provider</h2>
-              <p className="font-bold opacity-70 text-sm">OpenRouter is currently active</p>
+              <p className="font-bold opacity-70 text-sm">
+                {settings.aiProvider === 'gemini' ? '✨ Gemini is active' : '🆓 OpenRouter is active (free)'}
+              </p>
             </div>
           </div>
           
-          <div className="relative z-10 select-none pointer-events-none blur-[2px] opacity-70">
-            <form className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2">
-                <label className="font-black uppercase tracking-widest text-xs opacity-70">Active Provider</label>
-                <div className="flex gap-3">
-                  <button type="button" className="flex-1 py-3 px-4 border-4 border-border font-black text-sm uppercase tracking-wider bg-neo-blue text-bw shadow-neosm -translate-y-0.5">
-                    🆓 OpenRouter
-                  </button>
-                  <button type="button" className="flex-1 py-3 px-4 border-4 border-border font-black text-sm uppercase tracking-wider bg-gray-100">
-                    ✨ Gemini
-                  </button>
+          <form onSubmit={handleSaveSettings} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <label className="font-black uppercase tracking-widest text-xs opacity-70">Active Provider</label>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSettings({ ...settings, aiProvider: 'openrouter' })}
+                  className={`flex-1 py-3 px-4 border-4 border-border font-black text-sm uppercase tracking-wider transition-all ${
+                    settings.aiProvider === 'openrouter'
+                      ? 'bg-neo-blue text-bw shadow-neosm -translate-y-0.5'
+                      : 'bg-gray-100 hover:bg-gray-200'
+                  }`}
+                >
+                  🆓 OpenRouter
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettings({ ...settings, aiProvider: 'gemini' })}
+                  className={`flex-1 py-3 px-4 border-4 border-border font-black text-sm uppercase tracking-wider transition-all ${
+                    settings.aiProvider === 'gemini'
+                      ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-neosm -translate-y-0.5'
+                      : 'bg-gray-100 hover:bg-gray-200'
+                  }`}
+                >
+                  ✨ Gemini
+                </button>
+              </div>
+            </div>
+
+            {settings.aiProvider === 'gemini' && (
+              <div className="flex flex-col gap-3 animate-fadeIn">
+                {settings.geminiApiKeyFromEnv && !settings.geminiApiKey && (
+                  <div className="flex items-center gap-2 p-3 bg-green-50 border-2 border-green-300 rounded-base">
+                    <span className="text-lg">✅</span>
+                    <p className="font-bold text-sm text-green-800">Server default Gemini key is active. You can optionally add your own below.</p>
+                  </div>
+                )}
+                <div className="flex flex-col gap-1">
+                  <label className="font-black uppercase tracking-widest text-xs opacity-70">
+                    Gemini API Key {settings.geminiApiKeyConfigured && <span className="text-green-600 normal-case tracking-normal">(configured ✓)</span>}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showGeminiKey ? 'text' : 'password'}
+                      className="input-neo w-full pr-12"
+                      value={settings.geminiApiKey}
+                      onChange={(e) => setSettings({ ...settings, geminiApiKey: e.target.value })}
+                      placeholder={settings.geminiApiKeyFromEnv ? 'Using server default key...' : 'Enter your Gemini API key...'}
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xl opacity-70 hover:opacity-100 transition-opacity"
+                      onClick={() => setShowGeminiKey(!showGeminiKey)}
+                    >
+                      {showGeminiKey ? '🙈' : '👁️'}
+                    </button>
+                  </div>
+                  <span className="text-xs font-bold opacity-60 mt-1">
+                    Get your API key from <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-neo-blue underline hover:no-underline">Google AI Studio</a>
+                  </span>
                 </div>
               </div>
-              <div className="flex flex-col gap-1 opacity-50">
-                <label className="font-black uppercase tracking-widest text-xs opacity-70">Gemini API Key</label>
-                <input type="password" disabled className="input-neo w-full bg-gray-100" value="••••••••••••••••••••••••" />
+            )}
+
+            {settings.aiProvider === 'openrouter' && (
+              <div className="flex items-center gap-2 p-3 bg-blue-50 border-2 border-blue-200 rounded-base animate-fadeIn">
+                <span className="text-lg">💡</span>
+                <p className="font-bold text-sm text-blue-800">OpenRouter uses free models — no API key needed from you!</p>
               </div>
-            </form>
-          </div>
-          
-          {/* Overlay to enforce locked state and explain */}
-          <div className="absolute inset-0 bg-white/40 backdrop-blur-[1px] z-20 flex flex-col items-center justify-center pt-16">
-             <div className="bg-bw border-4 border-border p-3 shadow-neosm rounded-base transform -rotate-2">
-               <p className="font-black text-sm">🔒 Locked to OpenRouter</p>
-             </div>
-          </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-3 mt-2">
+              <button type="submit" className="btn-neo btn-neo-green flex-1" disabled={saving}>
+                {saving ? 'Saving...' : 'Save AI Settings'}
+              </button>
+              {settings.aiProvider === 'gemini' && (
+                <button
+                  type="button"
+                  className="btn-neo btn-neo-white"
+                  onClick={handleTestGemini}
+                  disabled={testingGemini || (!settings.geminiApiKey && !settings.geminiApiKeyFromEnv && !settings.geminiApiKeyConfigured)}
+                >
+                  {testingGemini ? '⏳ Testing...' : '🧪 Test Gemini'}
+                </button>
+              )}
+            </div>
+          </form>
         </div>
 
         {/* User Profile */}

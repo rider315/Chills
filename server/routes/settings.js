@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const { Settings } = require('../models');
 const emailSender = require('../services/emailSender');
+const config = require('../config');
 
 const router = express.Router();
 
@@ -25,11 +26,12 @@ router.get('/', async (req, res) => {
       response.geminiApiKeyConfigured = true;
       response.geminiApiKey = '••••••••';
     } else {
-      response.geminiApiKeyConfigured = false;
+      // Check if a server-level (env) Gemini key is available
+      response.geminiApiKeyConfigured = !!config.geminiApiKey;
+      response.geminiApiKeyFromEnv = !!config.geminiApiKey;
     }
 
     // Include whether OpenRouter API key is configured
-    const config = require('../config');
     response.openRouterApiKeyConfigured = !!config.openRouterApiKey;
 
     return res.status(200).json(response);
@@ -81,7 +83,8 @@ router.put('/', async (req, res) => {
       response.geminiApiKeyConfigured = true;
       response.geminiApiKey = '••••••••';
     } else {
-      response.geminiApiKeyConfigured = false;
+      response.geminiApiKeyConfigured = !!config.geminiApiKey;
+      response.geminiApiKeyFromEnv = !!config.geminiApiKey;
     }
 
     return res.status(200).json(response);
@@ -113,6 +116,42 @@ router.post('/test-smtp', async (req, res) => {
   } catch (error) {
     console.error('Test SMTP error:', error);
     return res.status(500).json({ error: `SMTP test failed: ${error.message}` });
+  }
+});
+
+
+/**
+ * POST /api/settings/test-gemini
+ * Test the Gemini API connection with a minimal prompt.
+ */
+router.post('/test-gemini', async (req, res) => {
+  try {
+    const apiKey = req.body.geminiApiKey || config.geminiApiKey;
+    if (!apiKey) {
+      return res.status(400).json({ success: false, error: 'No Gemini API key provided or configured.' });
+    }
+
+    const OpenAI = require('openai');
+    const gemini = new OpenAI({
+      baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+      apiKey: apiKey,
+    });
+
+    const response = await gemini.chat.completions.create({
+      model: 'gemini-2.5-flash',
+      messages: [{ role: 'user', content: 'Say "hello" in one word.' }],
+      max_tokens: 10,
+    });
+
+    const content = response.choices?.[0]?.message?.content;
+    if (content) {
+      return res.status(200).json({ success: true, message: `Gemini responded: "${content.trim()}"` });
+    } else {
+      return res.status(400).json({ success: false, error: 'Gemini returned an empty response.' });
+    }
+  } catch (error) {
+    console.error('Test Gemini error:', error);
+    return res.status(500).json({ success: false, error: `Gemini test failed: ${error.message}` });
   }
 });
 

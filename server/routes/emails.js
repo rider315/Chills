@@ -29,7 +29,7 @@ async function getAiConfig(userId) {
   const settings = await Settings.getForUser(userId);
   return {
     provider: settings.aiProvider || 'openrouter',
-    geminiApiKey: settings.geminiApiKey || '',
+    geminiApiKey: settings.geminiApiKey || config.geminiApiKey || '',
   };
 }
 
