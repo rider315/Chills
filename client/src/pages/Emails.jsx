@@ -367,22 +367,37 @@ export default function Emails() {
       {/* Generation Stats Banner */}
       {totalRecruiters > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="card-neo bg-bw flex flex-col items-center justify-center p-4">
+          <button 
+            onClick={() => setFilterStatus('all')}
+            className={`card-neo bg-bw flex flex-col items-center justify-center p-4 cursor-pointer hover:-translate-y-1 hover:shadow-neohover transition-all ${filterStatus === 'all' ? 'shadow-neohover -translate-y-1 border-neo-blue' : ''}`}
+          >
             <span className="text-3xl font-black">{totalRecruiters}</span>
             <span className="text-sm font-bold uppercase tracking-wider opacity-70">Recruiters</span>
-          </div>
-          <div className="card-neo bg-neo-yellow flex flex-col items-center justify-center p-4">
-            <span className="text-3xl font-black">{generatedCount}</span>
-            <span className="text-sm font-bold uppercase tracking-wider opacity-70">Generated</span>
-          </div>
-          <div className="card-neo bg-neo-red text-bw flex flex-col items-center justify-center p-4">
+          </button>
+          
+          <button 
+            onClick={() => setFilterStatus('pending')}
+            className={`card-neo bg-neo-red text-bw flex flex-col items-center justify-center p-4 cursor-pointer hover:-translate-y-1 hover:shadow-neohover transition-all ${filterStatus === 'pending' ? 'shadow-neohover -translate-y-1 border-bw' : ''}`}
+          >
             <span className="text-3xl font-black">{totalRecruiters - generatedCount}</span>
-            <span className="text-sm font-bold uppercase tracking-wider opacity-70 text-white">Pending</span>
-          </div>
-          <div className="card-neo bg-neo-green flex flex-col items-center justify-center p-4">
+            <span className="text-sm font-bold uppercase tracking-wider opacity-90 text-white">Pending</span>
+          </button>
+          
+          <button 
+            onClick={() => setFilterStatus('draft')}
+            className={`card-neo bg-neo-yellow flex flex-col items-center justify-center p-4 cursor-pointer hover:-translate-y-1 hover:shadow-neohover transition-all ${filterStatus === 'draft' ? 'shadow-neohover -translate-y-1 border-bw' : ''}`}
+          >
+            <span className="text-3xl font-black">{generatedCount - sentCount}</span>
+            <span className="text-sm font-bold uppercase tracking-wider opacity-70">Draft (Not Sent)</span>
+          </button>
+          
+          <button 
+            onClick={() => setFilterStatus('sent')}
+            className={`card-neo bg-neo-green flex flex-col items-center justify-center p-4 cursor-pointer hover:-translate-y-1 hover:shadow-neohover transition-all ${filterStatus === 'sent' ? 'shadow-neohover -translate-y-1 border-bw' : ''}`}
+          >
             <span className="text-3xl font-black">{sentCount}</span>
             <span className="text-sm font-bold uppercase tracking-wider opacity-70">Sent</span>
-          </div>
+          </button>
         </div>
       )}
 
@@ -452,8 +467,8 @@ export default function Emails() {
             >
               <option value="all">All</option>
               <option value="pending">Not Generated</option>
-              <option value="draft">Generated (Draft)</option>
-              <option value="sent">Sent</option>
+              <option value="draft">Generated Not Sent</option>
+              <option value="sent">Already Sent</option>
             </select>
           </div>
 

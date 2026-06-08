@@ -22,13 +22,18 @@ export default function Settings() {
     geminiApiKey: '',
     geminiApiKeyConfigured: false,
     geminiApiKeyFromEnv: false,
+    sambanovaApiKey: '',
+    sambanovaApiKeyConfigured: false,
+    sambanovaApiKeyFromEnv: false,
   });
   const [showSmtpPass, setShowSmtpPass] = useState(false);
   const [showGeminiKey, setShowGeminiKey] = useState(false);
+  const [showSambanovaKey, setShowSambanovaKey] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testingSmtp, setTestingSmtp] = useState(false);
   const [testingGemini, setTestingGemini] = useState(false);
+  const [testingSambanova, setTestingSambanova] = useState(false);
   const [runTour, setRunTour] = useState(false);
   const [tourKey, setTourKey] = useState(0);
 
@@ -65,7 +70,7 @@ export default function Settings() {
       content: (
         <div>
           <h3 className="font-black mb-2 text-lg">AI Provider 🤖</h3>
-          <p>Choose between <strong>OpenRouter</strong> (free) or <strong>Gemini</strong> (better quality). You can add your own Gemini API key or use the default one.</p>
+          <p>Choose between <strong>OpenRouter</strong> (free), <strong>Gemini</strong> (better quality), or <strong>SambaNova</strong> (fast Llama). You can add your own API keys or use the default ones.</p>
         </div>
       ),
     },
@@ -134,6 +139,9 @@ export default function Settings() {
         geminiApiKey: data.geminiApiKey || '',
         geminiApiKeyConfigured: data.geminiApiKeyConfigured || false,
         geminiApiKeyFromEnv: data.geminiApiKeyFromEnv || false,
+        sambanovaApiKey: data.sambanovaApiKey || '',
+        sambanovaApiKeyConfigured: data.sambanovaApiKeyConfigured || false,
+        sambanovaApiKeyFromEnv: data.sambanovaApiKeyFromEnv || false,
       });
     } catch (err) {
       // Settings might not exist yet — that's OK
@@ -170,6 +178,24 @@ export default function Settings() {
       toast.error('Gemini test failed: ' + err.message);
     } finally {
       setTestingGemini(false);
+    }
+  }
+
+  async function handleTestSambanova() {
+    setTestingSambanova(true);
+    try {
+      const result = await post('/api/settings/test-sambanova', {
+        sambanovaApiKey: settings.sambanovaApiKey,
+      });
+      if (result.success) {
+        toast.success('SambaNova API connection successful! 🎉');
+      } else {
+        toast.error('SambaNova test failed: ' + (result.error || 'Unknown error'));
+      }
+    } catch (err) {
+      toast.error('SambaNova test failed: ' + err.message);
+    } finally {
+      setTestingSambanova(false);
     }
   }
 
@@ -388,7 +414,7 @@ export default function Settings() {
             <div>
               <h2 className="text-2xl font-black">AI Provider</h2>
               <p className="font-bold opacity-70 text-sm">
-                {settings.aiProvider === 'gemini' ? '✨ Gemini is active' : '🆓 OpenRouter is active (free)'}
+                {settings.aiProvider === 'gemini' ? '✨ Gemini is active' : settings.aiProvider === 'sambanova' ? '🚀 SambaNova is active' : '🆓 OpenRouter is active (free)'}
               </p>
             </div>
           </div>
@@ -418,6 +444,17 @@ export default function Settings() {
                   }`}
                 >
                   ✨ Gemini
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettings({ ...settings, aiProvider: 'sambanova' })}
+                  className={`flex-1 py-3 px-4 border-4 border-border font-black text-sm uppercase tracking-wider transition-all ${
+                    settings.aiProvider === 'sambanova'
+                      ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-neosm -translate-y-0.5'
+                      : 'bg-gray-100 hover:bg-gray-200'
+                  }`}
+                >
+                  🚀 SambaNova
                 </button>
               </div>
             </div>
@@ -457,6 +494,41 @@ export default function Settings() {
               </div>
             )}
 
+            {settings.aiProvider === 'sambanova' && (
+              <div className="flex flex-col gap-3 animate-fadeIn">
+                {settings.sambanovaApiKeyFromEnv && !settings.sambanovaApiKey && (
+                  <div className="flex items-center gap-2 p-3 bg-orange-50 border-2 border-orange-300 rounded-base">
+                    <span className="text-lg">✅</span>
+                    <p className="font-bold text-sm text-orange-800">Server default SambaNova key is active. You can optionally add your own below.</p>
+                  </div>
+                )}
+                <div className="flex flex-col gap-1">
+                  <label className="font-black uppercase tracking-widest text-xs opacity-70">
+                    SambaNova API Key {settings.sambanovaApiKeyConfigured && <span className="text-green-600 normal-case tracking-normal">(configured ✓)</span>}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showSambanovaKey ? 'text' : 'password'}
+                      className="input-neo w-full pr-12"
+                      value={settings.sambanovaApiKey}
+                      onChange={(e) => setSettings({ ...settings, sambanovaApiKey: e.target.value })}
+                      placeholder={settings.sambanovaApiKeyFromEnv ? 'Using server default key...' : 'Enter your SambaNova API key...'}
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xl opacity-70 hover:opacity-100 transition-opacity"
+                      onClick={() => setShowSambanovaKey(!showSambanovaKey)}
+                    >
+                      {showSambanovaKey ? '🙈' : '👁️'}
+                    </button>
+                  </div>
+                  <span className="text-xs font-bold opacity-60 mt-1">
+                    Get your API key from <a href="https://cloud.sambanova.ai/apis" target="_blank" rel="noopener noreferrer" className="text-neo-blue underline hover:no-underline">SambaNova Cloud</a>
+                  </span>
+                </div>
+              </div>
+            )}
+
             {settings.aiProvider === 'openrouter' && (
               <div className="flex items-center gap-2 p-3 bg-blue-50 border-2 border-blue-200 rounded-base animate-fadeIn">
                 <span className="text-lg">💡</span>
@@ -476,6 +548,16 @@ export default function Settings() {
                   disabled={testingGemini || (!settings.geminiApiKey && !settings.geminiApiKeyFromEnv && !settings.geminiApiKeyConfigured)}
                 >
                   {testingGemini ? '⏳ Testing...' : '🧪 Test Gemini'}
+                </button>
+              )}
+              {settings.aiProvider === 'sambanova' && (
+                <button
+                  type="button"
+                  className="btn-neo btn-neo-white"
+                  onClick={handleTestSambanova}
+                  disabled={testingSambanova || (!settings.sambanovaApiKey && !settings.sambanovaApiKeyFromEnv && !settings.sambanovaApiKeyConfigured)}
+                >
+                  {testingSambanova ? '⏳ Testing...' : '🧪 Test SambaNova'}
                 </button>
               )}
             </div>

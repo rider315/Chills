@@ -7,6 +7,7 @@ const OpenAI = require('openai');
 
 let openRouterClient = null;
 const geminiClients = {}; // Cache by API key
+const sambanovaClients = {}; // Cache by API key
 
 /**
  * Get the OpenRouter client (free tier, uses env key).
@@ -42,8 +43,26 @@ function getGeminiClient(apiKey) {
   return geminiClients[apiKey];
 }
 
+/**
+ * Get a SambaNova client for the given API key.
+ * Uses SambaNova's OpenAI-compatible endpoint.
+ */
+function getSambanovaClient(apiKey) {
+  if (!apiKey) {
+    throw new Error('SambaNova API key is not configured. Please add it in Settings.');
+  }
+  if (!sambanovaClients[apiKey]) {
+    sambanovaClients[apiKey] = new OpenAI({
+      baseURL: 'https://api.sambanova.ai/v1',
+      apiKey: apiKey,
+    });
+  }
+  return sambanovaClients[apiKey];
+}
+
 const OPENROUTER_MODEL = 'openrouter/free';
 const GEMINI_MODEL = 'gemini-2.5-flash';
+const SAMBANOVA_MODEL = 'Meta-Llama-3.3-70B-Instruct';
 
 /**
  * Check if AI response is usable (not empty, not a refusal, not too short).
@@ -60,7 +79,7 @@ function isValidResponse(content) {
  * Generate content using the configured AI provider.
  * Retries automatically if the response is empty or low quality.
  * @param {string} prompt - The prompt to send
- * @param {object} [aiConfig] - Optional AI config: { provider: 'openrouter'|'gemini', geminiApiKey: '' }
+ * @param {object} [aiConfig] - Optional AI config: { provider: 'openrouter'|'gemini'|'sambanova', geminiApiKey: '', sambanovaApiKey: '' }
  * @param {number} [retries=3] - Number of retries
  */
 async function generateContent(prompt, aiConfig = null, retries = 3) {
@@ -81,6 +100,28 @@ async function generateContent(prompt, aiConfig = null, retries = 3) {
       } catch (err) {
         console.error(`[gemini] Attempt ${i + 1} failed:`, err.message);
         if (i === retries) throw err;
+      }
+    }
+    return "";
+  }
+
+  // --- SambaNova path ---
+  if (provider === 'sambanova' && aiConfig?.sambanovaApiKey) {
+    const ai = getSambanovaClient(aiConfig.sambanovaApiKey);
+    for (let i = 0; i <= retries; i++) {
+      try {
+        const response = await ai.chat.completions.create({
+          model: SAMBANOVA_MODEL,
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 2000,
+        });
+        const content = response.choices?.[0]?.message?.content;
+        if (isValidResponse(content)) return content;
+        console.warn(`[sambanova] Attempt ${i + 1}: weak/empty response (${(content || '').length} chars)`);
+      } catch (err) {
+        console.error(`[sambanova] Attempt ${i + 1} failed:`, err.message);
+        if (i === retries) throw err;
+        await new Promise(r => setTimeout(r, 1000));
       }
     }
     return "";
@@ -297,6 +338,15 @@ async function generateEmail(profile, companyResearch, recruiterInfo, profileSet
   const awards = profile.awards || [];
   const publications = profile.publications || [];
 
+  let customInstructions = '';
+  if (profile.email && profile.email.toLowerCase() === 'gaurav.chaudhary.865022@gmail.com') {
+    customInstructions = `
+- HARDCODED RULES FOR THIS APPLICANT:
+  * MUST explicitly mention current experience as an Associate Software Engineer at KPIT Technologies.
+  * MUST explicitly mention having startup experience (e.g., InsideFPV, KuppiSmart, Tokins).
+  * MUST give strong focus to AI applications and usage (e.g., custom LLM for B2B SaaS, RAG, AI marketing pipelines). Connect these AI skills to the company's needs.`;
+  }
+
   const prompt = `You are a cold email expert. Write a short, well-formatted cold email from a job seeker to a recruiter.
 
 The goal: Make the recruiter want to open the resume and schedule a call.
@@ -315,6 +365,7 @@ APPLICANT PROFILE:
 - Has Startup Experience: ${hasStartup}
 - Has AI/ML Experience: ${hasAI}
 ${flagshipProject ? `- Flagship Project: "${flagshipProject.name}" — ${flagshipProject.description || ''} (Tech: ${safeJoin(flagshipProject.technologies)}) (Scale: ${flagshipProject.scale || 'N/A'}) (Highlights: ${safeJoin(flagshipProject.highlights, '; ')})` : ''}
+${customInstructions}
 
 COMPANY INFO:
 - Company: ${recruiterInfo.company || companyResearch.companyName || 'Unknown'}

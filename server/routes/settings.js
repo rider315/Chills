@@ -31,6 +31,16 @@ router.get('/', async (req, res) => {
       response.geminiApiKeyFromEnv = !!config.geminiApiKey;
     }
 
+    // Mask SambaNova API key
+    if (response.sambanovaApiKey) {
+      response.sambanovaApiKeyConfigured = true;
+      response.sambanovaApiKey = '••••••••';
+    } else {
+      // Check if a server-level (env) SambaNova key is available
+      response.sambanovaApiKeyConfigured = !!config.sambanovaApiKey;
+      response.sambanovaApiKeyFromEnv = !!config.sambanovaApiKey;
+    }
+
     // Include whether OpenRouter API key is configured
     response.openRouterApiKeyConfigured = !!config.openRouterApiKey;
 
@@ -49,7 +59,7 @@ router.put('/', async (req, res) => {
   try {
     const settings = await Settings.getForUser(req.user._id);
     const updates = req.body;
-    const allowedFields = ['smtpHost', 'smtpPort', 'smtpUser', 'smtpPass', 'userName', 'userEmail', 'mobileNumber', 'linkedinUrl', 'portfolioUrl', 'immediateJoiner', 'aiProvider', 'geminiApiKey'];
+    const allowedFields = ['smtpHost', 'smtpPort', 'smtpUser', 'smtpPass', 'userName', 'userEmail', 'mobileNumber', 'linkedinUrl', 'portfolioUrl', 'immediateJoiner', 'aiProvider', 'geminiApiKey', 'sambanovaApiKey'];
 
     for (const field of allowedFields) {
       if (updates[field] !== undefined) {
@@ -59,6 +69,10 @@ router.put('/', async (req, res) => {
         }
         // Prevent overwriting the real Gemini API key with the masked version
         if (field === 'geminiApiKey' && updates[field] === '••••••••') {
+          continue;
+        }
+        // Prevent overwriting the real SambaNova API key with the masked version
+        if (field === 'sambanovaApiKey' && updates[field] === '••••••••') {
           continue;
         }
         settings[field] = updates[field];
@@ -85,6 +99,13 @@ router.put('/', async (req, res) => {
     } else {
       response.geminiApiKeyConfigured = !!config.geminiApiKey;
       response.geminiApiKeyFromEnv = !!config.geminiApiKey;
+    }
+    if (response.sambanovaApiKey) {
+      response.sambanovaApiKeyConfigured = true;
+      response.sambanovaApiKey = '••••••••';
+    } else {
+      response.sambanovaApiKeyConfigured = !!config.sambanovaApiKey;
+      response.sambanovaApiKeyFromEnv = !!config.sambanovaApiKey;
     }
 
     return res.status(200).json(response);
@@ -152,6 +173,42 @@ router.post('/test-gemini', async (req, res) => {
   } catch (error) {
     console.error('Test Gemini error:', error);
     return res.status(500).json({ success: false, error: `Gemini test failed: ${error.message}` });
+  }
+});
+
+
+/**
+ * POST /api/settings/test-sambanova
+ * Test the SambaNova API connection with a minimal prompt.
+ */
+router.post('/test-sambanova', async (req, res) => {
+  try {
+    const apiKey = req.body.sambanovaApiKey || config.sambanovaApiKey;
+    if (!apiKey) {
+      return res.status(400).json({ success: false, error: 'No SambaNova API key provided or configured.' });
+    }
+
+    const OpenAI = require('openai');
+    const sambanova = new OpenAI({
+      baseURL: 'https://api.sambanova.ai/v1',
+      apiKey: apiKey,
+    });
+
+    const response = await sambanova.chat.completions.create({
+      model: 'Meta-Llama-3.3-70B-Instruct',
+      messages: [{ role: 'user', content: 'Say "hello" in one word.' }],
+      max_tokens: 10,
+    });
+
+    const content = response.choices?.[0]?.message?.content;
+    if (content) {
+      return res.status(200).json({ success: true, message: `SambaNova responded: "${content.trim()}"` });
+    } else {
+      return res.status(400).json({ success: false, error: 'SambaNova returned an empty response.' });
+    }
+  } catch (error) {
+    console.error('Test SambaNova error:', error);
+    return res.status(500).json({ success: false, error: `SambaNova test failed: ${error.message}` });
   }
 });
 

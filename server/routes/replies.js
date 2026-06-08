@@ -30,6 +30,7 @@ router.post('/:applicationId', async (req, res) => {
     const aiConfig = {
       provider: settings.aiProvider || 'openrouter',
       geminiApiKey: settings.geminiApiKey || '',
+      sambanovaApiKey: settings.sambanovaApiKey || '',
     };
 
     // Analyze the reply with AI

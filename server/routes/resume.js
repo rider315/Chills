@@ -52,6 +52,7 @@ router.post('/upload', upload.single('resume'), async (req, res) => {
     const aiConfig = {
       provider: settings.aiProvider || 'openrouter',
       geminiApiKey: settings.geminiApiKey || '',
+      sambanovaApiKey: settings.sambanovaApiKey || '',
     };
 
     // Parse resume with AI

@@ -30,6 +30,7 @@ async function getAiConfig(userId) {
   return {
     provider: settings.aiProvider || 'openrouter',
     geminiApiKey: settings.geminiApiKey || config.geminiApiKey || '',
+    sambanovaApiKey: settings.sambanovaApiKey || config.sambanovaApiKey || '',
   };
 }
 
