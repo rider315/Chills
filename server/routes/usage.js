@@ -9,11 +9,12 @@ const router = express.Router();
 router.get('/status', async (req, res) => {
   try {
     const settings = await Settings.getForUser(req.user._id);
+    const isPremium = req.user.tier === 'premium' || req.user.subscriptionStatus === 'active';
     return res.status(200).json({
       configured: settings.smtpConfigured && !!settings.smtpUser,
       emailId: settings.smtpUser || null,
       emailsSent: req.user.emailsSent || 0,
-      isPremium: req.user.tier === 'premium',
+      isPremium: isPremium,
       limit: 5 // Hardcoded free tier limit
     });
   } catch (error) {

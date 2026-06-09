@@ -25,6 +25,13 @@ const authMiddleware = async (req, res, next) => {
     }
 
     req.user = user;
+
+    // Auto-sync: if subscription is active but tier is still 'free', fix it
+    if (user.subscriptionStatus === 'active' && user.tier !== 'premium') {
+      user.tier = 'premium';
+      await user.save();
+    }
+
     next();
   } catch (err) {
     return res.status(401).json({ error: 'Invalid or expired token' });

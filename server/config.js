@@ -6,6 +6,7 @@ const config = {
   openRouterApiKey: process.env.OPENROUTER_API_KEY || '',
   geminiApiKey: process.env.GEMINI_API_KEY || '',
   sambanovaApiKey: process.env.SAMBANOVA_API_KEY || '',
+  puterAuthToken: process.env.PUTER_AUTH_TOKEN || '',
   mongodbUri: process.env.MONGODB_URI || '',
   uploadsDir: path.resolve(__dirname, '..', 'uploads'),
   // Used to build absolute tracking pixel URLs. Override in production via APP_URL env var.

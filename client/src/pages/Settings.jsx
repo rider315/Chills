@@ -25,15 +25,20 @@ export default function Settings() {
     sambanovaApiKey: '',
     sambanovaApiKeyConfigured: false,
     sambanovaApiKeyFromEnv: false,
+    puterAuthToken: '',
+    puterAuthTokenConfigured: false,
+    puterAuthTokenFromEnv: false,
   });
   const [showSmtpPass, setShowSmtpPass] = useState(false);
   const [showGeminiKey, setShowGeminiKey] = useState(false);
   const [showSambanovaKey, setShowSambanovaKey] = useState(false);
+  const [showPuterKey, setShowPuterKey] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testingSmtp, setTestingSmtp] = useState(false);
   const [testingGemini, setTestingGemini] = useState(false);
   const [testingSambanova, setTestingSambanova] = useState(false);
+  const [testingPuter, setTestingPuter] = useState(false);
   const [runTour, setRunTour] = useState(false);
   const [tourKey, setTourKey] = useState(0);
 
@@ -142,6 +147,9 @@ export default function Settings() {
         sambanovaApiKey: data.sambanovaApiKey || '',
         sambanovaApiKeyConfigured: data.sambanovaApiKeyConfigured || false,
         sambanovaApiKeyFromEnv: data.sambanovaApiKeyFromEnv || false,
+        puterAuthToken: data.puterAuthToken || '',
+        puterAuthTokenConfigured: data.puterAuthTokenConfigured || false,
+        puterAuthTokenFromEnv: data.puterAuthTokenFromEnv || false,
       });
     } catch (err) {
       // Settings might not exist yet — that's OK
@@ -196,6 +204,24 @@ export default function Settings() {
       toast.error('SambaNova test failed: ' + err.message);
     } finally {
       setTestingSambanova(false);
+    }
+  }
+
+  async function handleTestPuter() {
+    setTestingPuter(true);
+    try {
+      const result = await post('/api/settings/test-puter', {
+        puterAuthToken: settings.puterAuthToken,
+      });
+      if (result.success) {
+        toast.success('Puter API connection successful! 🎉');
+      } else {
+        toast.error('Puter test failed: ' + (result.error || 'Unknown error'));
+      }
+    } catch (err) {
+      toast.error('Puter test failed: ' + err.message);
+    } finally {
+      setTestingPuter(false);
     }
   }
 
@@ -414,7 +440,7 @@ export default function Settings() {
             <div>
               <h2 className="text-2xl font-black">AI Provider</h2>
               <p className="font-bold opacity-70 text-sm">
-                {settings.aiProvider === 'gemini' ? '✨ Gemini is active' : settings.aiProvider === 'sambanova' ? '🚀 SambaNova is active' : '🆓 OpenRouter is active (free)'}
+                {settings.aiProvider === 'gemini' ? '✨ Gemini is active' : settings.aiProvider === 'sambanova' ? '🚀 SambaNova is active' : settings.aiProvider === 'puter' ? '☁️ Puter (Claude 3.5) is active' : '🆓 OpenRouter is active (free)'}
               </p>
             </div>
           </div>
@@ -422,11 +448,11 @@ export default function Settings() {
           <form onSubmit={handleSaveSettings} className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
               <label className="font-black uppercase tracking-widest text-xs opacity-70">Active Provider</label>
-              <div className="flex gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => setSettings({ ...settings, aiProvider: 'openrouter' })}
-                  className={`flex-1 py-3 px-4 border-4 border-border font-black text-sm uppercase tracking-wider transition-all ${
+                  className={`flex-1 py-3 px-2 border-4 border-border font-black text-sm uppercase tracking-wider transition-all ${
                     settings.aiProvider === 'openrouter'
                       ? 'bg-neo-blue text-bw shadow-neosm -translate-y-0.5'
                       : 'bg-gray-100 hover:bg-gray-200'
@@ -437,7 +463,7 @@ export default function Settings() {
                 <button
                   type="button"
                   onClick={() => setSettings({ ...settings, aiProvider: 'gemini' })}
-                  className={`flex-1 py-3 px-4 border-4 border-border font-black text-sm uppercase tracking-wider transition-all ${
+                  className={`flex-1 py-3 px-2 border-4 border-border font-black text-sm uppercase tracking-wider transition-all ${
                     settings.aiProvider === 'gemini'
                       ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-neosm -translate-y-0.5'
                       : 'bg-gray-100 hover:bg-gray-200'
@@ -448,13 +474,24 @@ export default function Settings() {
                 <button
                   type="button"
                   onClick={() => setSettings({ ...settings, aiProvider: 'sambanova' })}
-                  className={`flex-1 py-3 px-4 border-4 border-border font-black text-sm uppercase tracking-wider transition-all ${
+                  className={`flex-1 py-3 px-2 border-4 border-border font-black text-sm uppercase tracking-wider transition-all ${
                     settings.aiProvider === 'sambanova'
                       ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-neosm -translate-y-0.5'
                       : 'bg-gray-100 hover:bg-gray-200'
                   }`}
                 >
                   🚀 SambaNova
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettings({ ...settings, aiProvider: 'puter' })}
+                  className={`flex-1 py-3 px-2 border-4 border-border font-black text-sm uppercase tracking-wider transition-all ${
+                    settings.aiProvider === 'puter'
+                      ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white shadow-neosm -translate-y-0.5'
+                      : 'bg-gray-100 hover:bg-gray-200'
+                  }`}
+                >
+                  ☁️ Puter
                 </button>
               </div>
             </div>
@@ -529,6 +566,41 @@ export default function Settings() {
               </div>
             )}
 
+            {settings.aiProvider === 'puter' && (
+              <div className="flex flex-col gap-3 animate-fadeIn">
+                {settings.puterAuthTokenFromEnv && !settings.puterAuthToken && (
+                  <div className="flex items-center gap-2 p-3 bg-teal-50 border-2 border-teal-300 rounded-base">
+                    <span className="text-lg">✅</span>
+                    <p className="font-bold text-sm text-teal-800">Server default Puter token is active. You can optionally add your own below.</p>
+                  </div>
+                )}
+                <div className="flex flex-col gap-1">
+                  <label className="font-black uppercase tracking-widest text-xs opacity-70">
+                    Puter Auth Token {settings.puterAuthTokenConfigured && <span className="text-green-600 normal-case tracking-normal">(configured ✓)</span>}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPuterKey ? 'text' : 'password'}
+                      className="input-neo w-full pr-12"
+                      value={settings.puterAuthToken}
+                      onChange={(e) => setSettings({ ...settings, puterAuthToken: e.target.value })}
+                      placeholder={settings.puterAuthTokenFromEnv ? 'Using server default token...' : 'Enter your Puter Auth Token...'}
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xl opacity-70 hover:opacity-100 transition-opacity"
+                      onClick={() => setShowPuterKey(!showPuterKey)}
+                    >
+                      {showPuterKey ? '🙈' : '👁️'}
+                    </button>
+                  </div>
+                  <span className="text-xs font-bold opacity-60 mt-1">
+                    Get your Auth Token from <a href="https://puter.com/dashboard" target="_blank" rel="noopener noreferrer" className="text-neo-blue underline hover:no-underline">Puter Dashboard</a>
+                  </span>
+                </div>
+              </div>
+            )}
+
             {settings.aiProvider === 'openrouter' && (
               <div className="flex items-center gap-2 p-3 bg-blue-50 border-2 border-blue-200 rounded-base animate-fadeIn">
                 <span className="text-lg">💡</span>
@@ -558,6 +630,16 @@ export default function Settings() {
                   disabled={testingSambanova || (!settings.sambanovaApiKey && !settings.sambanovaApiKeyFromEnv && !settings.sambanovaApiKeyConfigured)}
                 >
                   {testingSambanova ? '⏳ Testing...' : '🧪 Test SambaNova'}
+                </button>
+              )}
+              {settings.aiProvider === 'puter' && (
+                <button
+                  type="button"
+                  className="btn-neo btn-neo-white"
+                  onClick={handleTestPuter}
+                  disabled={testingPuter || (!settings.puterAuthToken && !settings.puterAuthTokenFromEnv && !settings.puterAuthTokenConfigured)}
+                >
+                  {testingPuter ? '⏳ Testing...' : '🧪 Test Puter'}
                 </button>
               )}
             </div>

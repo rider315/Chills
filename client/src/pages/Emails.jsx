@@ -34,6 +34,7 @@ export default function Emails() {
   const [generating, setGenerating] = useState(false);
   const [generatingBulk, setGeneratingBulk] = useState(false);
   const [sendingBulk, setSendingBulk] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
   const [bulkProgress, setBulkProgress] = useState({ active: false, type: '', current: 0, total: 0, company: '' });
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -258,6 +259,7 @@ export default function Emails() {
   const handleSend = async () => {
     const aid = email?.applicationId;
     if (!aid) return;
+    setSendingEmail(true);
     try {
       const result = await post(`/api/emails/${aid}/send`);
       const msg = result?.resumeAttached
@@ -275,6 +277,8 @@ export default function Emails() {
       fetchData(); // Refresh usage stats
     } catch (err) {
       toast.error(err.message || 'Failed to send email');
+    } finally {
+      setSendingEmail(false);
     }
   };
 
@@ -550,6 +554,7 @@ export default function Emails() {
             email={email}
             recruiter={selectedRecruiter}
             loading={generating}
+            sending={sendingEmail}
             onSend={handleSend}
             onCopy={handleCopy}
             onRegenerate={handleGenerate}

@@ -12,6 +12,7 @@
     "start": "node server/index.js"
   },
   "dependencies": {
+    "@heyputer/puter.js": "^2.5.1",
     "bcryptjs": "^3.0.3",
     "concurrently": "^9.1.2",
     "cors": "^2.8.5",

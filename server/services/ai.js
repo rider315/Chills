@@ -63,6 +63,24 @@ function getSambanovaClient(apiKey) {
 const OPENROUTER_MODEL = 'openrouter/free';
 const GEMINI_MODEL = 'gemini-2.5-flash';
 const SAMBANOVA_MODEL = 'Meta-Llama-3.3-70B-Instruct';
+const PUTER_MODEL = 'claude-sonnet-4-6';
+
+let puterInstance = null;
+
+/**
+ * Get a Puter client for the given API key.
+ */
+async function getPuterClient(apiKey) {
+  if (!apiKey) {
+    throw new Error('Puter Auth Token is not configured. Please add it in Settings.');
+  }
+  if (!puterInstance) {
+    const { puter } = await import('@heyputer/puter.js');
+    puterInstance = puter;
+  }
+  puterInstance.setAuthToken(apiKey);
+  return puterInstance;
+}
 
 /**
  * Check if AI response is usable (not empty, not a refusal, not too short).
@@ -152,6 +170,25 @@ async function generateContent(prompt, aiConfig = null, retries = 4) {
         console.warn(`[sambanova] Attempt ${i + 1}: weak/empty response (${(content || '').length} chars)`);
       } catch (err) {
         console.error(`[sambanova] Attempt ${i + 1} failed:`, err.message);
+        if (i === retries) throw err;
+        const delay = getRetryDelay(err, i);
+        await new Promise(r => setTimeout(r, delay));
+      }
+    }
+    return "";
+  }
+
+  // --- Puter path ---
+  if (provider === 'puter' && aiConfig?.puterAuthToken) {
+    const ai = await getPuterClient(aiConfig.puterAuthToken);
+    for (let i = 0; i <= retries; i++) {
+      try {
+        const response = await ai.ai.chat(prompt, { model: PUTER_MODEL });
+        const content = response?.message?.content?.[0]?.text;
+        if (isValidResponse(content)) return content;
+        console.warn(`[puter] Attempt ${i + 1}: weak/empty response (${(content || '').length} chars)`);
+      } catch (err) {
+        console.error(`[puter] Attempt ${i + 1} failed:`, err.message);
         if (i === retries) throw err;
         const delay = getRetryDelay(err, i);
         await new Promise(r => setTimeout(r, delay));
@@ -472,14 +509,15 @@ ${customInstructions}
 === STRICT RULES ===
 
 1. TOTAL email body: 170-200 words (excluding signature). This is important — do NOT write less than 180 words.
-2. Use SIMPLE, everyday English. A 15-year-old should be able to read it easily.
-3. NEVER use these words: synergy, leverage, passionate, rockstar, thrilled, delighted, esteemed, utilize, endeavor, pursuant.
-4. NEVER use placeholders or brackets like [Name], [Company], [Your Name]. Use actual data only.
-5. NEVER make up experience, companies, or project names. Use ONLY what is in the profile.
-6. Each section must be separated by a blank line. The email should look clean and scannable.
-7. Do NOT use bullet points or numbered lists in the email body.
-8. Do NOT use markdown formatting (no **, no ##, no []() links).
-9. Keep the tone confident but not arrogant. Friendly but professional.
+2. WRITE HUMANIZED EMAILS: Use SIMPLE, everyday English. A 15-year-old should be able to read it easily. It should sound like a real person wrote it, not an AI. Use a casual but professional tone.
+3. NEVER use em dashes (—) or en dashes (–) anywhere in the email body. AI models over-use these. If you need to separate clauses, use periods, commas, or parentheses instead.
+4. NEVER use these words: synergy, leverage, passionate, rockstar, thrilled, delighted, esteemed, utilize, endeavor, pursuant, cutting-edge, innovative.
+5. NEVER use placeholders or brackets like [Name], [Company], [Your Name]. Use actual data only.
+6. NEVER make up experience, companies, or project names. Use ONLY what is in the profile.
+7. Each section must be separated by a blank line. The email should look clean and scannable.
+8. Do NOT use bullet points or numbered lists in the email body.
+9. Do NOT use markdown formatting (no **, no ##, no []() links).
+10. Keep the tone confident but not arrogant. Friendly but professional.
 
 === OUTPUT FORMAT ===
 

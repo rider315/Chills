@@ -6,6 +6,7 @@ export default function EmailPreview({
   recruiter,
   status,
   loading,
+  sending,
   onSend,
   onCopy,
   onRegenerate,
@@ -255,7 +256,9 @@ export default function EmailPreview({
                     🛑 Upgrade to Send
                   </button>
                 ) : (
-                  <button className="btn-neo btn-neo-green px-6" onClick={onSend}>📤 Send</button>
+                  <button className="btn-neo btn-neo-green px-6 flex items-center gap-2 justify-center min-w-[120px]" onClick={onSend} disabled={sending}>
+                    {sending ? <span className="animate-spin text-xl">⏳</span> : '📤 Send'}
+                  </button>
                 )}
                 <button className="btn-neo btn-neo-white px-6" onClick={onCopy}>📋 Copy</button>
                 <button className="btn-neo btn-neo-blue px-6" onClick={() => setEditing(true)}>✏️ Edit</button>

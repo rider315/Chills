@@ -41,6 +41,15 @@ router.get('/', async (req, res) => {
       response.sambanovaApiKeyFromEnv = !!config.sambanovaApiKey;
     }
 
+    // Mask Puter Auth Token
+    if (response.puterAuthToken) {
+      response.puterAuthTokenConfigured = true;
+      response.puterAuthToken = '••••••••';
+    } else {
+      response.puterAuthTokenConfigured = !!config.puterAuthToken;
+      response.puterAuthTokenFromEnv = !!config.puterAuthToken;
+    }
+
     // Include whether OpenRouter API key is configured
     response.openRouterApiKeyConfigured = !!config.openRouterApiKey;
 
@@ -59,7 +68,7 @@ router.put('/', async (req, res) => {
   try {
     const settings = await Settings.getForUser(req.user._id);
     const updates = req.body;
-    const allowedFields = ['smtpHost', 'smtpPort', 'smtpUser', 'smtpPass', 'userName', 'userEmail', 'mobileNumber', 'linkedinUrl', 'portfolioUrl', 'immediateJoiner', 'aiProvider', 'geminiApiKey', 'sambanovaApiKey'];
+    const allowedFields = ['smtpHost', 'smtpPort', 'smtpUser', 'smtpPass', 'userName', 'userEmail', 'mobileNumber', 'linkedinUrl', 'portfolioUrl', 'immediateJoiner', 'aiProvider', 'geminiApiKey', 'sambanovaApiKey', 'puterAuthToken'];
 
     for (const field of allowedFields) {
       if (updates[field] !== undefined) {
@@ -73,6 +82,10 @@ router.put('/', async (req, res) => {
         }
         // Prevent overwriting the real SambaNova API key with the masked version
         if (field === 'sambanovaApiKey' && updates[field] === '••••••••') {
+          continue;
+        }
+        // Prevent overwriting the real Puter Auth Token with the masked version
+        if (field === 'puterAuthToken' && updates[field] === '••••••••') {
           continue;
         }
         settings[field] = updates[field];
@@ -106,6 +119,13 @@ router.put('/', async (req, res) => {
     } else {
       response.sambanovaApiKeyConfigured = !!config.sambanovaApiKey;
       response.sambanovaApiKeyFromEnv = !!config.sambanovaApiKey;
+    }
+    if (response.puterAuthToken) {
+      response.puterAuthTokenConfigured = true;
+      response.puterAuthToken = '••••••••';
+    } else {
+      response.puterAuthTokenConfigured = !!config.puterAuthToken;
+      response.puterAuthTokenFromEnv = !!config.puterAuthToken;
     }
 
     return res.status(200).json(response);
@@ -212,6 +232,32 @@ router.post('/test-sambanova', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/settings/test-puter
+ * Test the Puter API connection.
+ */
+router.post('/test-puter', async (req, res) => {
+  try {
+    const token = req.body.puterAuthToken || config.puterAuthToken;
+    if (!token) {
+      return res.status(400).json({ success: false, error: 'No Puter Auth Token provided or configured.' });
+    }
 
+    const { puter } = await import('@heyputer/puter.js');
+    puter.setAuthToken(token);
+
+    const response = await puter.ai.chat('Say "hello" in one word.', { model: 'claude-sonnet-4-6' });
+    const content = response?.message?.content?.[0]?.text;
+
+    if (content) {
+      return res.status(200).json({ success: true, message: `Puter responded: "${content.trim()}"` });
+    } else {
+      return res.status(400).json({ success: false, error: 'Puter returned an empty response.' });
+    }
+  } catch (error) {
+    console.error('Test Puter error:', error);
+    return res.status(500).json({ success: false, error: `Puter test failed: ${error.message}` });
+  }
+});
 
 module.exports = router;

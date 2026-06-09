@@ -101,9 +101,10 @@ const settingsSchema = new mongoose.Schema({
     url: { type: String, default: '' },
   }],
   // AI Provider settings
-  aiProvider: { type: String, enum: ['openrouter', 'gemini', 'sambanova'], default: 'openrouter' },
+  aiProvider: { type: String, enum: ['openrouter', 'gemini', 'sambanova', 'puter'], default: 'openrouter' },
   geminiApiKey: { type: String, default: '' },
   sambanovaApiKey: { type: String, default: '' },
+  puterAuthToken: { type: String, default: '' },
 }, { timestamps: true });
 
 /**

@@ -31,6 +31,7 @@ async function getAiConfig(userId) {
     provider: settings.aiProvider || 'openrouter',
     geminiApiKey: settings.geminiApiKey || config.geminiApiKey || '',
     sambanovaApiKey: settings.sambanovaApiKey || config.sambanovaApiKey || '',
+    puterAuthToken: settings.puterAuthToken || config.puterAuthToken || '',
   };
 }
 
@@ -364,8 +365,9 @@ router.post('/:applicationId/send', async (req, res) => {
     const transport = emailSender.createTransport(smtpConfig);
     const fromAddress = `${smtpConfig.user}`;
 
-    // Freemium Limit Check
-    if (req.user.tier !== 'premium' && (req.user.emailsSent || 0) >= 5) {
+    // Freemium Limit Check — also honour subscriptionStatus in case tier wasn't synced
+    const isPremium = req.user.tier === 'premium' || req.user.subscriptionStatus === 'active';
+    if (!isPremium && (req.user.emailsSent || 0) >= 5) {
       return res.status(403).json({ error: 'You have reached the limit of 5 emails on the free tier. Please upgrade to premium to send more.' });
     }
 
@@ -483,7 +485,8 @@ router.post('/send-bulk', async (req, res) => {
     
     // Check initial limit before loop
     for (const app of readyToSend) {
-      if (req.user.tier !== 'premium' && (req.user.emailsSent || 0) >= 5) {
+      const isPremiumBulk = req.user.tier === 'premium' || req.user.subscriptionStatus === 'active';
+      if (!isPremiumBulk && (req.user.emailsSent || 0) >= 5) {
         results.failed++;
         results.errors.push({ recruiterEmail: app.recruiterEmail, error: 'Free tier limit (5 emails) reached.' });
         continue;
