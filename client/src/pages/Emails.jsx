@@ -119,16 +119,16 @@ export default function Emails() {
     }
   };
 
-  const handleGenerateBulk = async (useSelection = false) => {
+  const handleGenerateBulk = async (useSelection = false, forceRegenerate = false) => {
     let targets = [];
     if (useSelection) {
-      targets = recruiters.filter(r => selectedRecruiters.includes(r.id || r._id) && !statusMap[r.id || r._id]?.hasEmail);
+      targets = recruiters.filter(r => selectedRecruiters.includes(r.id || r._id) && (forceRegenerate || !statusMap[r.id || r._id]?.hasEmail));
     } else {
-      targets = recruiters.filter(r => !statusMap[r.id || r._id]?.hasEmail);
+      targets = recruiters.filter(r => forceRegenerate || !statusMap[r.id || r._id]?.hasEmail);
     }
 
     if (targets.length === 0) {
-      return toast.info('All selected recruiters already have emails generated.');
+      return toast.info('No recruiters found to generate emails for.');
     }
 
     setGeneratingBulk(true);
@@ -143,7 +143,10 @@ export default function Emails() {
       setBulkProgress(prev => ({ ...prev, current: i + 1, company: r.company }));
 
       try {
-        const data = await post(`/api/emails/generate/${rid}`);
+        const url = (forceRegenerate || statusMap[rid]?.hasEmail)
+          ? `/api/emails/generate/${rid}?force=true`
+          : `/api/emails/generate/${rid}`;
+        const data = await post(url);
         const emailData = normalizeEmail(data);
         
         // Update local maps
@@ -345,6 +348,9 @@ export default function Emails() {
               <button className="btn-neo bg-neo-yellow text-text px-4 py-2" onClick={() => handleGenerateBulk(true)} disabled={generatingBulk}>
                 ⚡ Generate Selected ({selectedRecruiters.length})
               </button>
+              <button className="btn-neo bg-neo-orange text-text px-4 py-2" onClick={() => handleGenerateBulk(true, true)} disabled={generatingBulk}>
+                🔄 Regenerate Selected ({selectedRecruiters.length})
+              </button>
             </>
           )}
           <button
@@ -360,6 +366,13 @@ export default function Emails() {
             disabled={generatingBulk || recruiters.length === 0}
           >
             {generatingBulk ? 'Generating...' : '⚡ Generate All'}
+          </button>
+          <button
+            className="btn-neo bg-neo-orange text-bw border-2 border-border"
+            onClick={() => handleGenerateBulk(false, true)}
+            disabled={generatingBulk || recruiters.length === 0}
+          >
+            {generatingBulk ? 'Regenerating...' : '🔄 Regenerate All'}
           </button>
         </div>
       </div>

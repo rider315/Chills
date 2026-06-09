@@ -180,18 +180,21 @@ router.post('/generate-bulk', async (req, res) => {
     const profileSettings = await getProfileSettings(req.user._id);
     const aiConfig = await getAiConfig(req.user._id);
 
-    // Allow optional recruiterIds in body
-    const { recruiterIds } = req.body || {};
+    // Allow optional recruiterIds and forceRegenerate in body
+    const { recruiterIds, forceRegenerate } = req.body || {};
     let targetRecruiters = await Recruiter.find({ userId: req.user._id });
     if (Array.isArray(recruiterIds) && recruiterIds.length > 0) {
       const idSet = new Set(recruiterIds);
       targetRecruiters = targetRecruiters.filter((r) => idSet.has(r._id.toString()));
     }
 
-    // Find recruiters without applications
-    const existingRecruiterIds = (await Application.find({ userId: req.user._id }, 'recruiterId')).map((a) => a.recruiterId.toString());
-    const existingSet = new Set(existingRecruiterIds);
-    const pendingRecruiters = targetRecruiters.filter((r) => !existingSet.has(r._id.toString()));
+    let pendingRecruiters = targetRecruiters;
+    if (!forceRegenerate) {
+      // Find recruiters without applications
+      const existingRecruiterIds = (await Application.find({ userId: req.user._id }, 'recruiterId')).map((a) => a.recruiterId.toString());
+      const existingSet = new Set(existingRecruiterIds);
+      pendingRecruiters = targetRecruiters.filter((r) => !existingSet.has(r._id.toString()));
+    }
 
     if (pendingRecruiters.length === 0) {
       return res.status(200).json({
@@ -227,17 +230,19 @@ router.post('/generate-bulk', async (req, res) => {
           const generatedEmail = await ai.generateEmail(resume.parsed, companyResearch, recruiter, profileSettings, aiConfig);
           const sendTimeInfo = await ai.suggestSendTime(recruiter.company, recruiter, aiConfig);
 
-          await Application.create({
-            userId: req.user._id,
-            recruiterId: recruiter._id,
-            recruiterEmail: recruiter.email,
-            company: recruiter.company,
-            recruiterName: recruiter.recruiterName,
-            status: 'draft',
-            generatedEmail,
-            suggestedSendTime: sendTimeInfo.suggestedTime || '',
-            companyResearch,
-          });
+          await Application.findOneAndUpdate(
+            { userId: req.user._id, recruiterId: recruiter._id },
+            {
+              recruiterEmail: recruiter.email,
+              company: recruiter.company,
+              recruiterName: recruiter.recruiterName,
+              status: 'draft',
+              generatedEmail,
+              suggestedSendTime: sendTimeInfo.suggestedTime || '',
+              companyResearch,
+            },
+            { upsert: true, new: true }
+          );
 
           results.generated++;
           success = true;
