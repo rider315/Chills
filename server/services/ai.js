@@ -377,8 +377,8 @@ async function generateEmail(profile, companyResearch, recruiterInfo, profileSet
 === MANDATORY RULES FOR THIS SPECIFIC APPLICANT (MUST FOLLOW — FAILURE TO FOLLOW = REJECTION) ===
 
 1. MUST open Section 3 by stating current role: "Currently working as an Associate Software Engineer at KPIT Technologies..." or similar. Do NOT skip this.
-2. MUST name specific startups by name: InsideFPV, KuppiSmart, Tokins. Example: "Before KPIT, I built products across startups like InsideFPV, KuppiSmart, and Tokins..."
-3. MUST mention specific AI work with detail: custom LLM integration for B2B SaaS (Tokins), RAG pipelines, AI-powered marketing automation. Do NOT just say "AI experience" — name the techniques and what they did.
+2. MUST name specific startups by name: InsideFPV, KuppiSmart. Example: "Before KPIT, I built products across startups like InsideFPV and KuppiSmart..."
+3. MUST mention specific AI work with detail: custom LLM integration for B2B SaaS (Tokins project), RAG pipelines, AI-powered marketing automation. Do NOT just say "AI experience" — name the techniques and what they did.
 4. MUST connect the AI experience to what THIS specific company needs. Example for a consulting company: "...this AI engineering background could drive innovation in [company]'s digital transformation practice."
 5. These 4 rules override any conflicting instructions above. If the email doesn't include ALL of these, it is WRONG.`;
   }
@@ -436,7 +436,7 @@ Mention something specific about the company — a recent trend, product, news, 
 Paragraph 1 — CURRENT ROLE & EXPERIENCE:
 - Start with the applicant's current/most recent role and company name.
 - Mention what they do there and any notable achievements.
-${hasStartup ? '- MUST name the specific startups the applicant has worked at (use the actual company names from the resume — e.g., InsideFPV, KuppiSmart, Tokins). Do NOT just say "startup environments" generically.' : ''}
+${hasStartup ? '- MUST name the specific startups the applicant has worked at (use the actual company names from the resume — e.g., InsideFPV, KuppiSmart). Do NOT just say "startup environments" generically.' : ''}
 
 Paragraph 2 — FLAGSHIP PROJECT & AI SKILLS:
 ${flagshipProject ? `- MUST mention the flagship project "${flagshipProject.name}" with a concrete metric or scale (e.g., "${flagshipProject.scale || ''}"). Describe what it does and the tech behind it in 2-3 sentences.` : '- Mention the most impressive project from the resume with a concrete metric.'}
