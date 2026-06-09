@@ -76,13 +76,43 @@ function isValidResponse(content) {
 }
 
 /**
+ * Calculate backoff delay for retries.
+ * If the error is a 429 rate limit, use the Retry-After header or a longer base delay.
+ * Otherwise, use a short exponential backoff.
+ */
+function getRetryDelay(err, attempt) {
+  const is429 = err?.status === 429 || err?.statusCode === 429 ||
+    (err?.message && err.message.includes('429'));
+
+  if (is429) {
+    // Check for Retry-After header (in seconds)
+    const retryAfter = err?.headers?.['retry-after'] || err?.error?.['retry-after'];
+    if (retryAfter) {
+      const seconds = parseInt(retryAfter, 10);
+      if (!isNaN(seconds) && seconds > 0) {
+        console.log(`[rate-limit] Retry-After header: waiting ${seconds}s`);
+        return seconds * 1000;
+      }
+    }
+    // Exponential backoff for 429s: 5s, 10s, 20s, 40s
+    const delay = Math.min(5000 * Math.pow(2, attempt), 60000);
+    console.log(`[rate-limit] 429 detected, waiting ${delay / 1000}s (attempt ${attempt + 1})`);
+    return delay;
+  }
+
+  // Non-rate-limit errors: shorter backoff 1s, 2s, 4s
+  return Math.min(1000 * Math.pow(2, attempt), 8000);
+}
+
+/**
  * Generate content using the configured AI provider.
  * Retries automatically if the response is empty or low quality.
+ * Handles 429 rate limits with exponential backoff.
  * @param {string} prompt - The prompt to send
  * @param {object} [aiConfig] - Optional AI config: { provider: 'openrouter'|'gemini'|'sambanova', geminiApiKey: '', sambanovaApiKey: '' }
- * @param {number} [retries=3] - Number of retries
+ * @param {number} [retries=4] - Number of retries
  */
-async function generateContent(prompt, aiConfig = null, retries = 3) {
+async function generateContent(prompt, aiConfig = null, retries = 4) {
   const provider = aiConfig?.provider || 'openrouter';
 
   // --- Gemini path ---
@@ -100,6 +130,8 @@ async function generateContent(prompt, aiConfig = null, retries = 3) {
       } catch (err) {
         console.error(`[gemini] Attempt ${i + 1} failed:`, err.message);
         if (i === retries) throw err;
+        const delay = getRetryDelay(err, i);
+        await new Promise(r => setTimeout(r, delay));
       }
     }
     return "";
@@ -121,7 +153,8 @@ async function generateContent(prompt, aiConfig = null, retries = 3) {
       } catch (err) {
         console.error(`[sambanova] Attempt ${i + 1} failed:`, err.message);
         if (i === retries) throw err;
-        await new Promise(r => setTimeout(r, 1000));
+        const delay = getRetryDelay(err, i);
+        await new Promise(r => setTimeout(r, delay));
       }
     }
     return "";
@@ -145,8 +178,8 @@ async function generateContent(prompt, aiConfig = null, retries = 3) {
     } catch (err) {
       console.error(`[openrouter] Attempt ${i + 1} failed:`, err.message);
       if (i === retries) throw err;
-      // Wait a bit before retrying to avoid rate limits
-      await new Promise(r => setTimeout(r, 1000));
+      const delay = getRetryDelay(err, i);
+      await new Promise(r => setTimeout(r, delay));
     }
   }
   return "";
@@ -341,13 +374,16 @@ async function generateEmail(profile, companyResearch, recruiterInfo, profileSet
   let customInstructions = '';
   if (profile.email && profile.email.toLowerCase() === 'gaurav.chaudhary.865022@gmail.com') {
     customInstructions = `
-- HARDCODED RULES FOR THIS APPLICANT:
-  * MUST explicitly mention current experience as an Associate Software Engineer at KPIT Technologies.
-  * MUST explicitly mention having startup experience (e.g., InsideFPV, KuppiSmart, Tokins).
-  * MUST give strong focus to AI applications and usage (e.g., custom LLM for B2B SaaS, RAG, AI marketing pipelines). Connect these AI skills to the company's needs.`;
+=== MANDATORY RULES FOR THIS SPECIFIC APPLICANT (MUST FOLLOW — FAILURE TO FOLLOW = REJECTION) ===
+
+1. MUST open Section 3 by stating current role: "Currently working as an Associate Software Engineer at KPIT Technologies..." or similar. Do NOT skip this.
+2. MUST name specific startups by name: InsideFPV, KuppiSmart, Tokins. Example: "Before KPIT, I built products across startups like InsideFPV, KuppiSmart, and Tokins..."
+3. MUST mention specific AI work with detail: custom LLM integration for B2B SaaS (Tokins), RAG pipelines, AI-powered marketing automation. Do NOT just say "AI experience" — name the techniques and what they did.
+4. MUST connect the AI experience to what THIS specific company needs. Example for a consulting company: "...this AI engineering background could drive innovation in [company]'s digital transformation practice."
+5. These 4 rules override any conflicting instructions above. If the email doesn't include ALL of these, it is WRONG.`;
   }
 
-  const prompt = `You are a cold email expert. Write a short, well-formatted cold email from a job seeker to a recruiter.
+  const prompt = `You are a cold email expert. Write a personalized, well-formatted cold email from a job seeker to a recruiter.
 
 The goal: Make the recruiter want to open the resume and schedule a call.
 
@@ -365,7 +401,6 @@ APPLICANT PROFILE:
 - Has Startup Experience: ${hasStartup}
 - Has AI/ML Experience: ${hasAI}
 ${flagshipProject ? `- Flagship Project: "${flagshipProject.name}" — ${flagshipProject.description || ''} (Tech: ${safeJoin(flagshipProject.technologies)}) (Scale: ${flagshipProject.scale || 'N/A'}) (Highlights: ${safeJoin(flagshipProject.highlights, '; ')})` : ''}
-${customInstructions}
 
 COMPANY INFO:
 - Company: ${recruiterInfo.company || companyResearch.companyName || 'Unknown'}
@@ -393,34 +428,37 @@ Start with a short, respectful line that grabs attention. Examples:
 - "Won't take more than 30 seconds of your time."
 Do NOT start with "Dear" or "I hope this email finds you well." Just the catchy line.
 
-**Section 2 — COMPANY HOOK (1-2 lines)**
-Mention something specific about the company — a recent trend, product, news, or tech direction. Show you actually know the company. Address the recruiter by first name if available, otherwise skip the name entirely. Example: "I've been following ${recruiterInfo.company || 'your company'}'s work in [specific area] and..."
+**Section 2 — COMPANY HOOK (2-3 lines)**
+Mention something specific about the company — a recent trend, product, news, or tech direction. Show you actually know the company. Address the recruiter by first name if available, otherwise skip the name entirely. Be specific — mention a real product, initiative, or news item. Example: "I've been following ${recruiterInfo.company || 'your company'}'s work in [specific area] and..."
 
-**Section 3 — WHY HIRE ME (split into 2 short paragraphs, separated by a blank line)**
-Paragraph 1: Your most impressive project/achievement + startup experience.
-Paragraph 2: How your skills match what this company needs + what value you bring.
-Follow these rules STRICTLY:
+**Section 3 — WHY HIRE ME (split into 3 short paragraphs, separated by blank lines)**
 
-${flagshipProject ? `- MUST mention the flagship project "${flagshipProject.name}" with a concrete metric or scale (e.g., "${flagshipProject.scale || ''}" or key highlights). Keep it to 1-2 sentences.` : '- Mention the most impressive project from the resume with a concrete metric.'}
+Paragraph 1 — CURRENT ROLE & EXPERIENCE:
+- Start with the applicant's current/most recent role and company name.
+- Mention what they do there and any notable achievements.
+${hasStartup ? '- MUST name the specific startups the applicant has worked at (use the actual company names from the resume — e.g., InsideFPV, KuppiSmart, Tokins). Do NOT just say "startup environments" generically.' : ''}
 
-${hasStartup ? '- MUST mention startup/leadership experience naturally (e.g., "Having worked in startup environments, I understand the pace and ownership needed...").' : ''}
+Paragraph 2 — FLAGSHIP PROJECT & AI SKILLS:
+${flagshipProject ? `- MUST mention the flagship project "${flagshipProject.name}" with a concrete metric or scale (e.g., "${flagshipProject.scale || ''}"). Describe what it does and the tech behind it in 2-3 sentences.` : '- Mention the most impressive project from the resume with a concrete metric.'}
+${hasAI ? '- MUST describe specific AI/ML work: name the techniques used (e.g., custom LLM, RAG pipelines, AI marketing automation) and what business outcomes they achieved. Do NOT just say "experience in AI" — be specific about WHAT was built and WHY it matters.' : ''}
 
-${hasAI ? '- MUST mention AI/RAG/LLM experience and connect it to how it could benefit the company. Be specific about what AI tools/techniques were used.' : ''}
-
+Paragraph 3 — SKILL MATCH & VALUE PROPOSITION:
 - SKILL MATCHING (CRITICAL): The company sector is "${sector}" and they hire for: ${hiringTech || 'general tech roles'}.
   * ONLY mention skills from the applicant that MATCH what this company needs.
   * For automotive companies → emphasize embedded systems, C/C++, AUTOSAR, ECU, Python scripting, and relevant automotive experience.
   * For software/SaaS companies → emphasize full-stack skills (React, Node.js, MongoDB, AWS), scalability, and web development experience.
   * For AI/ML companies → emphasize AI, ML, LLM, RAG, deep learning, computer vision experience.
+  * For consulting/IT services companies → emphasize breadth of tech skills, adaptability, AI capabilities, and delivery experience.
   * For IoT companies → emphasize IoT, sensor data, real-time systems, Python, embedded experience.
-  * DO NOT mention skills that have no relation to this company's domain. For example, don't mention AUTOSAR for a SaaS company, or React for a pure embedded systems company.
+  * DO NOT mention skills that have no relation to this company's domain.
+- Explain how the applicant's specific background creates value for THIS company. Connect past work to the company's current initiatives or needs.
 
 - Weave the skills naturally into sentences. Do NOT list them as bullet points or comma-separated lists.
 - Frame everything as value you bring: "I built X which did Y" not "I know X".
 
-**Section 4 — AVAILABILITY & CTA (1-2 lines)**
+**Section 4 — AVAILABILITY & CTA (2-3 lines)**
 ${profileSettings.immediateJoiner ? '- Mention being available to join immediately.' : ''}
-- Mention the attached resume naturally (e.g., "I\'ve attached my resume for a closer look.").
+- Mention the attached resume naturally (e.g., "I've attached my resume for a closer look.").
 - End with a soft ask (e.g., "Would you be open to a quick chat?" or "Happy to share more details if this sounds like a fit.").
 - Do NOT add a separate "Resume attached" line.
 
@@ -429,10 +467,11 @@ Applicant's name on its own line.
 Then print each contact link on its own line, EXACTLY as provided. Do NOT use markdown link syntax. Do NOT embed links in text. Format exactly like:
 Mobile: +1234567890
 LinkedIn: https://linkedin.com/in/...
+${customInstructions}
 
 === STRICT RULES ===
 
-1. TOTAL email body: 120-170 words. Not more.
+1. TOTAL email body: 170-200 words (excluding signature). This is important — do NOT write less than 180 words.
 2. Use SIMPLE, everyday English. A 15-year-old should be able to read it easily.
 3. NEVER use these words: synergy, leverage, passionate, rockstar, thrilled, delighted, esteemed, utilize, endeavor, pursuant.
 4. NEVER use placeholders or brackets like [Name], [Company], [Your Name]. Use actual data only.

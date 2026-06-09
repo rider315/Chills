@@ -203,28 +203,57 @@ router.post('/generate-bulk', async (req, res) => {
 
     const results = { generated: 0, failed: 0, errors: [] };
 
-    for (const recruiter of pendingRecruiters) {
-      try {
-        const companyResearch = await ai.researchCompany(recruiter.company || 'Unknown Company', aiConfig);
-        const generatedEmail = await ai.generateEmail(resume.parsed, companyResearch, recruiter, profileSettings, aiConfig);
-        const sendTimeInfo = await ai.suggestSendTime(recruiter.company, recruiter, aiConfig);
+    for (let idx = 0; idx < pendingRecruiters.length; idx++) {
+      const recruiter = pendingRecruiters[idx];
 
-        await Application.create({
-          userId: req.user._id,
-          recruiterId: recruiter._id,
-          recruiterEmail: recruiter.email,
-          company: recruiter.company,
-          recruiterName: recruiter.recruiterName,
-          status: 'draft',
-          generatedEmail,
-          suggestedSendTime: sendTimeInfo.suggestedTime || '',
-          companyResearch,
-        });
+      // Add a cooldown delay between recruiters to avoid rate limits (skip before first)
+      if (idx > 0) {
+        const cooldown = Math.floor(Math.random() * (6000 - 3000 + 1)) + 3000; // 3-6s
+        console.log(`[bulk-generate] Cooling down ${cooldown / 1000}s before recruiter ${idx + 1}/${pendingRecruiters.length}...`);
+        await new Promise(r => setTimeout(r, cooldown));
+      }
 
-        results.generated++;
-      } catch (err) {
-        results.failed++;
-        results.errors.push({ recruiterId: recruiter._id, email: recruiter.email, error: err.message });
+      // Try up to 2 attempts per recruiter (1 initial + 1 retry on rate limit)
+      let success = false;
+      for (let attempt = 0; attempt < 2 && !success; attempt++) {
+        try {
+          if (attempt > 0) {
+            // Extra cooldown before retry after rate limit
+            console.log(`[bulk-generate] Rate-limit retry for ${recruiter.company}, waiting 15s...`);
+            await new Promise(r => setTimeout(r, 15000));
+          }
+
+          const companyResearch = await ai.researchCompany(recruiter.company || 'Unknown Company', aiConfig);
+          const generatedEmail = await ai.generateEmail(resume.parsed, companyResearch, recruiter, profileSettings, aiConfig);
+          const sendTimeInfo = await ai.suggestSendTime(recruiter.company, recruiter, aiConfig);
+
+          await Application.create({
+            userId: req.user._id,
+            recruiterId: recruiter._id,
+            recruiterEmail: recruiter.email,
+            company: recruiter.company,
+            recruiterName: recruiter.recruiterName,
+            status: 'draft',
+            generatedEmail,
+            suggestedSendTime: sendTimeInfo.suggestedTime || '',
+            companyResearch,
+          });
+
+          results.generated++;
+          success = true;
+        } catch (err) {
+          const isRateLimit = err?.status === 429 || err?.statusCode === 429 ||
+            (err?.message && err.message.includes('429'));
+
+          if (isRateLimit && attempt === 0) {
+            // Will retry after cooldown
+            console.warn(`[bulk-generate] Rate limited on ${recruiter.company}, will retry...`);
+            continue;
+          }
+
+          results.failed++;
+          results.errors.push({ recruiterId: recruiter._id, email: recruiter.email, error: err.message });
+        }
       }
     }
 
@@ -331,7 +360,7 @@ router.post('/:applicationId/send', async (req, res) => {
     const fromAddress = `${smtpConfig.user}`;
 
     // Freemium Limit Check
-    if (!req.user.isPremium && (req.user.emailsSent || 0) >= 5) {
+    if (req.user.tier !== 'premium' && (req.user.emailsSent || 0) >= 5) {
       return res.status(403).json({ error: 'You have reached the limit of 5 emails on the free tier. Please upgrade to premium to send more.' });
     }
 
@@ -449,7 +478,7 @@ router.post('/send-bulk', async (req, res) => {
     
     // Check initial limit before loop
     for (const app of readyToSend) {
-      if (!req.user.isPremium && (req.user.emailsSent || 0) >= 5) {
+      if (req.user.tier !== 'premium' && (req.user.emailsSent || 0) >= 5) {
         results.failed++;
         results.errors.push({ recruiterEmail: app.recruiterEmail, error: 'Free tier limit (5 emails) reached.' });
         continue;
