@@ -208,6 +208,18 @@ export default function Emails() {
           ...prev,
           [rId]: { ...prev[rId], status: 'sent' },
         }));
+        setEmailMap((prev) => ({
+          ...prev,
+          [rId]: { ...prev[rId], status: 'sent' },
+        }));
+        
+        // If the currently viewed email was sent, update it too
+        setEmail((prev) => {
+          if (prev && (prev.recruiterId === rId || prev.applicationId === appId)) {
+            return { ...prev, status: 'sent' };
+          }
+          return prev;
+        });
 
         // Delay between sends (2.5 seconds)
         if (i < targets.length - 1) {
@@ -273,7 +285,12 @@ export default function Emails() {
           ...prev,
           [rid]: { ...prev[rid], status: 'sent' },
         }));
+        setEmailMap((prev) => ({
+          ...prev,
+          [rid]: { ...prev[rid], status: 'sent' },
+        }));
       }
+      setEmail((prev) => (prev ? { ...prev, status: 'sent' } : prev));
       fetchData(); // Refresh usage stats
     } catch (err) {
       toast.error(err.message || 'Failed to send email');
