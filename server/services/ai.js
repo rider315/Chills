@@ -413,11 +413,12 @@ async function generateEmail(profile, companyResearch, recruiterInfo, profileSet
     customInstructions = `
 === MANDATORY RULES FOR THIS SPECIFIC APPLICANT (MUST FOLLOW — FAILURE TO FOLLOW = REJECTION) ===
 
-1. MUST open Section 3 by stating current role: "Currently working as an Associate Software Engineer at KPIT Technologies..." or similar. Do NOT skip this.
-2. MUST name specific startups by name: InsideFPV, KuppiSmart. Example: "Before KPIT, I built products across startups like InsideFPV and KuppiSmart..."
-3. MUST mention specific AI work with detail: custom LLM integration for B2B SaaS (Tokins project), RAG pipelines, AI-powered marketing automation. Do NOT just say "AI experience" — name the techniques and what they did.
-4. MUST connect the AI experience to what THIS specific company needs. Example for a consulting company: "...this AI engineering background could drive innovation in [company]'s digital transformation practice."
-5. These 4 rules override any conflicting instructions above. If the email doesn't include ALL of these, it is WRONG.`;
+1. MUST open Section 3 by stating current role: "Currently working as an Associate Software Engineer at KPIT Technologies..." or similar. Do NOT skip this. When mentioning the KPIT experience, STRICTLY DO NOT mention dSpace tools or similar testing tools.
+2. MUST tailor the KPIT experience to the target company's domain. Mention related experience from KPIT that aligns with what the specific company is working on.
+3. MUST name specific startups by name: InsideFPV, KuppiSmart. Example: "Before KPIT, I built products across startups like InsideFPV and KuppiSmart..."
+4. MUST mention specific AI work with detail: custom LLM integration for B2B SaaS (Tokins project), RAG pipelines, AI-powered marketing automation. Do NOT just say "AI experience" — name the techniques and what they did.
+5. MUST connect the AI experience to what THIS specific company needs. Example for a consulting company: "...this AI engineering background could drive innovation in [company]'s digital transformation practice."
+6. These rules override any conflicting instructions above. If the email doesn't follow ALL of these, it is WRONG.`;
   }
 
   const prompt = `You are a cold email expert. Write a personalized, well-formatted cold email from a job seeker to a recruiter.
