@@ -60,9 +60,29 @@ function getSambanovaClient(apiKey) {
   return sambanovaClients[apiKey];
 }
 
+const cerebrasClients = {}; // Cache by API key
+
+/**
+ * Get a Cerebras client for the given API key.
+ * Uses Cerebras's OpenAI-compatible endpoint.
+ */
+function getCerebrasClient(apiKey) {
+  if (!apiKey) {
+    throw new Error('Cerebras API key is not configured. Please add it in Settings.');
+  }
+  if (!cerebrasClients[apiKey]) {
+    cerebrasClients[apiKey] = new OpenAI({
+      baseURL: 'https://api.cerebras.ai/v1',
+      apiKey: apiKey,
+    });
+  }
+  return cerebrasClients[apiKey];
+}
+
 const OPENROUTER_MODEL = 'openrouter/free';
 const GEMINI_MODEL = 'gemini-2.5-flash';
 const SAMBANOVA_MODEL = 'Meta-Llama-3.3-70B-Instruct';
+const CEREBRAS_MODEL = 'gpt-oss-120b';
 const PUTER_MODEL = 'claude-sonnet-4-6';
 
 let puterInstance = null;
@@ -170,6 +190,31 @@ async function generateContent(prompt, aiConfig = null, retries = 4) {
         console.warn(`[sambanova] Attempt ${i + 1}: weak/empty response (${(content || '').length} chars)`);
       } catch (err) {
         console.error(`[sambanova] Attempt ${i + 1} failed:`, err.message);
+        if (i === retries) throw err;
+        const delay = getRetryDelay(err, i);
+        await new Promise(r => setTimeout(r, delay));
+      }
+    }
+    return "";
+  }
+
+  // --- Cerebras path ---
+  if (provider === 'cerebras' && aiConfig?.cerebrasApiKey) {
+    const ai = getCerebrasClient(aiConfig.cerebrasApiKey);
+    for (let i = 0; i <= retries; i++) {
+      try {
+        const response = await ai.chat.completions.create({
+          model: CEREBRAS_MODEL,
+          messages: [{ role: 'user', content: prompt }],
+          max_completion_tokens: 8192,
+        });
+        // Cerebras reasoning models put output in message.reasoning instead of message.content
+        const msg = response.choices?.[0]?.message;
+        const content = msg?.content || msg?.reasoning;
+        if (isValidResponse(content)) return content;
+        console.warn(`[cerebras] Attempt ${i + 1}: weak/empty response (${(content || '').length} chars)`);
+      } catch (err) {
+        console.error(`[cerebras] Attempt ${i + 1} failed:`, err.message);
         if (i === retries) throw err;
         const delay = getRetryDelay(err, i);
         await new Promise(r => setTimeout(r, delay));

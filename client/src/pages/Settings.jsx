@@ -28,17 +28,22 @@ export default function Settings() {
     puterAuthToken: '',
     puterAuthTokenConfigured: false,
     puterAuthTokenFromEnv: false,
+    cerebrasApiKey: '',
+    cerebrasApiKeyConfigured: false,
+    cerebrasApiKeyFromEnv: false,
   });
   const [showSmtpPass, setShowSmtpPass] = useState(false);
   const [showGeminiKey, setShowGeminiKey] = useState(false);
   const [showSambanovaKey, setShowSambanovaKey] = useState(false);
   const [showPuterKey, setShowPuterKey] = useState(false);
+  const [showCerebrasKey, setShowCerebrasKey] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testingSmtp, setTestingSmtp] = useState(false);
   const [testingGemini, setTestingGemini] = useState(false);
   const [testingSambanova, setTestingSambanova] = useState(false);
   const [testingPuter, setTestingPuter] = useState(false);
+  const [testingCerebras, setTestingCerebras] = useState(false);
   const [runTour, setRunTour] = useState(false);
   const [tourKey, setTourKey] = useState(0);
 
@@ -150,6 +155,9 @@ export default function Settings() {
         puterAuthToken: data.puterAuthToken || '',
         puterAuthTokenConfigured: data.puterAuthTokenConfigured || false,
         puterAuthTokenFromEnv: data.puterAuthTokenFromEnv || false,
+        cerebrasApiKey: data.cerebrasApiKey || '',
+        cerebrasApiKeyConfigured: data.cerebrasApiKeyConfigured || false,
+        cerebrasApiKeyFromEnv: data.cerebrasApiKeyFromEnv || false,
       });
     } catch (err) {
       // Settings might not exist yet — that's OK
@@ -222,6 +230,24 @@ export default function Settings() {
       toast.error('Puter test failed: ' + err.message);
     } finally {
       setTestingPuter(false);
+    }
+  }
+
+  async function handleTestCerebras() {
+    setTestingCerebras(true);
+    try {
+      const result = await post('/api/settings/test-cerebras', {
+        cerebrasApiKey: settings.cerebrasApiKey,
+      });
+      if (result.success) {
+        toast.success('Cerebras API connection successful! 🎉');
+      } else {
+        toast.error('Cerebras test failed: ' + (result.error || 'Unknown error'));
+      }
+    } catch (err) {
+      toast.error('Cerebras test failed: ' + err.message);
+    } finally {
+      setTestingCerebras(false);
     }
   }
 
@@ -440,7 +466,7 @@ export default function Settings() {
             <div>
               <h2 className="text-2xl font-black">AI Provider</h2>
               <p className="font-bold opacity-70 text-sm">
-                {settings.aiProvider === 'gemini' ? '✨ Gemini is active' : settings.aiProvider === 'sambanova' ? '🚀 SambaNova is active' : settings.aiProvider === 'puter' ? '☁️ Puter (Claude 3.5) is active' : '🆓 OpenRouter is active (free)'}
+                {settings.aiProvider === 'gemini' ? '✨ Gemini is active' : settings.aiProvider === 'sambanova' ? '🚀 SambaNova is active' : settings.aiProvider === 'puter' ? '☁️ Puter (Claude 3.5) is active' : settings.aiProvider === 'cerebras' ? '⚡ Cerebras is active' : '🆓 OpenRouter is active (free)'}
               </p>
             </div>
           </div>
@@ -492,6 +518,17 @@ export default function Settings() {
                   }`}
                 >
                   ☁️ Puter
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettings({ ...settings, aiProvider: 'cerebras' })}
+                  className={`flex-1 py-3 px-2 border-4 border-border font-black text-sm uppercase tracking-wider transition-all ${
+                    settings.aiProvider === 'cerebras'
+                      ? 'bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white shadow-neosm -translate-y-0.5'
+                      : 'bg-gray-100 hover:bg-gray-200'
+                  }`}
+                >
+                  ⚡ Cerebras
                 </button>
               </div>
             </div>
@@ -601,6 +638,41 @@ export default function Settings() {
               </div>
             )}
 
+            {settings.aiProvider === 'cerebras' && (
+              <div className="flex flex-col gap-3 animate-fadeIn">
+                {settings.cerebrasApiKeyFromEnv && !settings.cerebrasApiKey && (
+                  <div className="flex items-center gap-2 p-3 bg-violet-50 border-2 border-violet-300 rounded-base">
+                    <span className="text-lg">✅</span>
+                    <p className="font-bold text-sm text-violet-800">Server default Cerebras key is active. You can optionally add your own below.</p>
+                  </div>
+                )}
+                <div className="flex flex-col gap-1">
+                  <label className="font-black uppercase tracking-widest text-xs opacity-70">
+                    Cerebras API Key {settings.cerebrasApiKeyConfigured && <span className="text-green-600 normal-case tracking-normal">(configured ✓)</span>}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showCerebrasKey ? 'text' : 'password'}
+                      className="input-neo w-full pr-12"
+                      value={settings.cerebrasApiKey}
+                      onChange={(e) => setSettings({ ...settings, cerebrasApiKey: e.target.value })}
+                      placeholder={settings.cerebrasApiKeyFromEnv ? 'Using server default key...' : 'Enter your Cerebras API key...'}
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xl opacity-70 hover:opacity-100 transition-opacity"
+                      onClick={() => setShowCerebrasKey(!showCerebrasKey)}
+                    >
+                      {showCerebrasKey ? '🙈' : '👁️'}
+                    </button>
+                  </div>
+                  <span className="text-xs font-bold opacity-60 mt-1">
+                    Get your API key from <a href="https://cloud.cerebras.ai/" target="_blank" rel="noopener noreferrer" className="text-neo-blue underline hover:no-underline">Cerebras Cloud</a>
+                  </span>
+                </div>
+              </div>
+            )}
+
             {settings.aiProvider === 'openrouter' && (
               <div className="flex items-center gap-2 p-3 bg-blue-50 border-2 border-blue-200 rounded-base animate-fadeIn">
                 <span className="text-lg">💡</span>
@@ -640,6 +712,16 @@ export default function Settings() {
                   disabled={testingPuter || (!settings.puterAuthToken && !settings.puterAuthTokenFromEnv && !settings.puterAuthTokenConfigured)}
                 >
                   {testingPuter ? '⏳ Testing...' : '🧪 Test Puter'}
+                </button>
+              )}
+              {settings.aiProvider === 'cerebras' && (
+                <button
+                  type="button"
+                  className="btn-neo btn-neo-white"
+                  onClick={handleTestCerebras}
+                  disabled={testingCerebras || (!settings.cerebrasApiKey && !settings.cerebrasApiKeyFromEnv && !settings.cerebrasApiKeyConfigured)}
+                >
+                  {testingCerebras ? '⏳ Testing...' : '🧪 Test Cerebras'}
                 </button>
               )}
             </div>

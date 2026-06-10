@@ -50,6 +50,15 @@ router.get('/', async (req, res) => {
       response.puterAuthTokenFromEnv = !!config.puterAuthToken;
     }
 
+    // Mask Cerebras API key
+    if (response.cerebrasApiKey) {
+      response.cerebrasApiKeyConfigured = true;
+      response.cerebrasApiKey = '••••••••';
+    } else {
+      response.cerebrasApiKeyConfigured = !!config.cerebrasApiKey;
+      response.cerebrasApiKeyFromEnv = !!config.cerebrasApiKey;
+    }
+
     // Include whether OpenRouter API key is configured
     response.openRouterApiKeyConfigured = !!config.openRouterApiKey;
 
@@ -68,7 +77,7 @@ router.put('/', async (req, res) => {
   try {
     const settings = await Settings.getForUser(req.user._id);
     const updates = req.body;
-    const allowedFields = ['smtpHost', 'smtpPort', 'smtpUser', 'smtpPass', 'userName', 'userEmail', 'mobileNumber', 'linkedinUrl', 'portfolioUrl', 'immediateJoiner', 'aiProvider', 'geminiApiKey', 'sambanovaApiKey', 'puterAuthToken'];
+    const allowedFields = ['smtpHost', 'smtpPort', 'smtpUser', 'smtpPass', 'userName', 'userEmail', 'mobileNumber', 'linkedinUrl', 'portfolioUrl', 'immediateJoiner', 'aiProvider', 'geminiApiKey', 'sambanovaApiKey', 'puterAuthToken', 'cerebrasApiKey'];
 
     for (const field of allowedFields) {
       if (updates[field] !== undefined) {
@@ -86,6 +95,10 @@ router.put('/', async (req, res) => {
         }
         // Prevent overwriting the real Puter Auth Token with the masked version
         if (field === 'puterAuthToken' && updates[field] === '••••••••') {
+          continue;
+        }
+        // Prevent overwriting the real Cerebras API key with the masked version
+        if (field === 'cerebrasApiKey' && updates[field] === '••••••••') {
           continue;
         }
         settings[field] = updates[field];
@@ -126,6 +139,13 @@ router.put('/', async (req, res) => {
     } else {
       response.puterAuthTokenConfigured = !!config.puterAuthToken;
       response.puterAuthTokenFromEnv = !!config.puterAuthToken;
+    }
+    if (response.cerebrasApiKey) {
+      response.cerebrasApiKeyConfigured = true;
+      response.cerebrasApiKey = '••••••••';
+    } else {
+      response.cerebrasApiKeyConfigured = !!config.cerebrasApiKey;
+      response.cerebrasApiKeyFromEnv = !!config.cerebrasApiKey;
     }
 
     return res.status(200).json(response);
@@ -257,6 +277,88 @@ router.post('/test-puter', async (req, res) => {
   } catch (error) {
     console.error('Test Puter error:', error);
     return res.status(500).json({ success: false, error: `Puter test failed: ${error.message}` });
+  }
+});
+
+/**
+ * POST /api/settings/test-cerebras
+ * Test the Cerebras API connection with a minimal prompt.
+ */
+router.post('/test-cerebras', async (req, res) => {
+  try {
+    let apiKey = req.body.cerebrasApiKey;
+    let keySource = 'request body';
+    // If the key is masked or empty, load the real key from the database or env
+    if (!apiKey || apiKey === '••••••••') {
+      const settings = await Settings.getForUser(req.user._id);
+      if (settings.cerebrasApiKey) {
+        apiKey = settings.cerebrasApiKey;
+        keySource = 'database';
+      } else if (config.cerebrasApiKey) {
+        apiKey = config.cerebrasApiKey;
+        keySource = 'env';
+      }
+    }
+    if (!apiKey) {
+      return res.status(400).json({ success: false, error: 'No Cerebras API key provided or configured.' });
+    }
+
+    console.log(`[test-cerebras] Using key from ${keySource}, key starts with: ${apiKey.substring(0, 8)}...`);
+
+    // Fetch available models to find a valid one
+    const testResponse = await fetch('https://api.cerebras.ai/v1/models', {
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+    });
+
+    if (!testResponse.ok) {
+      const errorBody = await testResponse.text().catch(() => 'no body');
+      console.error(`[test-cerebras] Models endpoint returned ${testResponse.status}: ${errorBody}`);
+      return res.status(400).json({
+        success: false,
+        error: `Cerebras API returned ${testResponse.status}. Please verify your API key is correct. Get one from https://cloud.cerebras.ai/`,
+      });
+    }
+
+    const modelsData = await testResponse.json();
+    const availableModels = (modelsData.data || []).map(m => m.id);
+    console.log(`[test-cerebras] Available models: ${availableModels.join(', ')}`);
+
+    if (availableModels.length === 0) {
+      return res.status(400).json({ success: false, error: 'No models available on your Cerebras account.' });
+    }
+
+    // Pick the best model: prefer llama-3.3-70b or any llama model, fallback to first available
+    const preferredModel = availableModels.find(m => m.includes('llama') && m.includes('70b'))
+      || availableModels.find(m => m.includes('llama'))
+      || availableModels[0];
+
+    console.log(`[test-cerebras] Using model: ${preferredModel}`);
+
+    // Key is valid, now test a completion
+    const OpenAI = require('openai');
+    const cerebras = new OpenAI({
+      baseURL: 'https://api.cerebras.ai/v1',
+      apiKey: apiKey,
+    });
+
+    const response = await cerebras.chat.completions.create({
+      model: preferredModel,
+      messages: [{ role: 'user', content: 'Say "hello" in one word.' }],
+      max_completion_tokens: 256,
+    });
+
+    console.log(`[test-cerebras] Raw response:`, JSON.stringify(response.choices?.[0]));
+    // Cerebras reasoning models (gpt-oss-120b, zai-glm-4.7) put output in message.reasoning instead of message.content
+    const msg = response.choices?.[0]?.message;
+    const content = msg?.content || msg?.reasoning;
+    if (content) {
+      return res.status(200).json({ success: true, message: `Cerebras responded: "${content.trim().substring(0, 100)}" (model: ${preferredModel})` });
+    } else {
+      return res.status(400).json({ success: false, error: 'Cerebras returned an empty response.' });
+    }
+  } catch (error) {
+    console.error('Test Cerebras error:', error);
+    return res.status(500).json({ success: false, error: `Cerebras test failed: ${error.message}` });
   }
 });
 

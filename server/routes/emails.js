@@ -32,6 +32,7 @@ async function getAiConfig(userId) {
     geminiApiKey: settings.geminiApiKey || config.geminiApiKey || '',
     sambanovaApiKey: settings.sambanovaApiKey || config.sambanovaApiKey || '',
     puterAuthToken: settings.puterAuthToken || config.puterAuthToken || '',
+    cerebrasApiKey: settings.cerebrasApiKey || config.cerebrasApiKey || '',
   };
 }
 

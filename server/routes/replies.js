@@ -31,6 +31,8 @@ router.post('/:applicationId', async (req, res) => {
       provider: settings.aiProvider || 'openrouter',
       geminiApiKey: settings.geminiApiKey || '',
       sambanovaApiKey: settings.sambanovaApiKey || '',
+      puterAuthToken: settings.puterAuthToken || '',
+      cerebrasApiKey: settings.cerebrasApiKey || '',
     };
 
     // Analyze the reply with AI
