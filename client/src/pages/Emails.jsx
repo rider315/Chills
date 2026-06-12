@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { get, post, put } from '../utils/api';
 import { useToast } from '../components/Toast';
 import EmailPreview from '../components/EmailPreview';
+import BulkSendModal from '../components/BulkSendModal';
 
 /**
  * Flatten an application object into the shape EmailPreview expects.
@@ -42,6 +43,7 @@ export default function Emails() {
   const [emailMap, setEmailMap] = useState({});
   const [statusMap, setStatusMap] = useState({}); // recruiterId -> { hasEmail, status }
   const [usageStats, setUsageStats] = useState(null); // Freemium limits
+  const [bulkConfirm, setBulkConfirm] = useState({ isOpen: false, targets: [], useSelection: false });
 
   useEffect(() => {
     fetchData();
@@ -55,9 +57,13 @@ export default function Emails() {
         get('/api/emails/status'),
         get('/api/usage/status')
       ]);
-      setRecruiters(recruiterData?.recruiters || recruiterData || []);
+      const newRecruiters = recruiterData?.recruiters || recruiterData || [];
+      setRecruiters(newRecruiters);
       setStatusMap(statusData?.statusMap || {});
       setUsageStats(usageData || null);
+      // Prune stale selections — remove IDs that no longer exist in the recruiter list
+      const validIds = new Set(newRecruiters.map(r => r.id || r._id));
+      setSelectedRecruiters(prev => prev.filter(id => validIds.has(id)));
     } catch (err) {
       toast.error('Failed to load data');
     } finally {
@@ -166,10 +172,11 @@ export default function Emails() {
 
     setGeneratingBulk(false);
     setBulkProgress({ active: false, type: '', current: 0, total: 0, company: '' });
+    setSelectedRecruiters([]); // Clear selection after bulk action
     toast.success(`Batch generation complete! Generated: ${generated}, Failed: ${failed}`);
   };
 
-  const handleSendBulk = async (useSelection = false) => {
+  const handleSendBulk = (useSelection = false) => {
     let targets = [];
     if (useSelection) {
       targets = recruiters.filter(r => selectedRecruiters.includes(r.id || r._id) && statusMap[r.id || r._id]?.hasEmail && statusMap[r.id || r._id]?.status !== 'sent');
@@ -181,10 +188,13 @@ export default function Emails() {
       return toast.info('No draft emails ready to send.');
     }
 
-    const msg = useSelection 
-      ? `Are you sure you want to send emails to the ${targets.length} selected recruiters?`
-      : `Are you sure you want to send all ${targets.length} draft emails?`;
-    if (!window.confirm(msg)) return;
+    // Show custom confirmation modal instead of window.confirm
+    setBulkConfirm({ isOpen: true, targets, useSelection });
+  };
+
+  const executeBulkSend = async () => {
+    const { targets } = bulkConfirm;
+    setBulkConfirm({ isOpen: false, targets: [], useSelection: false });
 
     setSendingBulk(true);
     setBulkProgress({ active: true, type: 'send', current: 0, total: targets.length, company: '' });
@@ -234,6 +244,7 @@ export default function Emails() {
 
     setSendingBulk(false);
     setBulkProgress({ active: false, type: '', current: 0, total: 0, company: '' });
+    setSelectedRecruiters([]); // Clear selection after bulk action
     toast.success(`Batch sending complete! Sent: ${sent}, Failed: ${failed}`);
     fetchData(); // Refresh usage stats
   };
@@ -245,10 +256,18 @@ export default function Emails() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedRecruiters.length === filtered.length) {
-      setSelectedRecruiters([]);
+    const filteredIds = filtered.map((r) => r.id || r._id);
+    const allSelected = filteredIds.length > 0 && filteredIds.every(id => selectedRecruiters.includes(id));
+    if (allSelected) {
+      // Deselect only the filtered ones (keep any from other filters)
+      setSelectedRecruiters(prev => prev.filter(id => !filteredIds.includes(id)));
     } else {
-      setSelectedRecruiters(filtered.map((r) => r.id || r._id));
+      // Add all filtered IDs to selection (merge with existing)
+      setSelectedRecruiters(prev => {
+        const existing = new Set(prev);
+        filteredIds.forEach(id => existing.add(id));
+        return [...existing];
+      });
     }
   };
 
@@ -525,7 +544,7 @@ export default function Emails() {
               <>
                 <div className="flex items-center justify-between p-3 border-b-4 border-border bg-gray-50">
                   <button className="font-bold text-sm hover:underline" onClick={toggleSelectAll}>
-                    {selectedRecruiters.length === filtered.length && filtered.length > 0 ? 'Deselect All' : 'Select All'}
+                    {filtered.length > 0 && filtered.every(r => selectedRecruiters.includes(r.id || r._id)) ? 'Deselect All' : 'Select All'}
                   </button>
                   {selectedRecruiters.length > 0 && <span className="text-xs font-black bg-neo-yellow px-2 py-1 rounded border-2 border-border">{selectedRecruiters.length} selected</span>}
                 </div>
@@ -581,6 +600,14 @@ export default function Emails() {
           />
         </div>
       </div>
+      {/* Bulk Send Confirmation Modal */}
+      <BulkSendModal
+        isOpen={bulkConfirm.isOpen}
+        onClose={() => setBulkConfirm({ isOpen: false, targets: [], useSelection: false })}
+        onConfirm={executeBulkSend}
+        targets={bulkConfirm.targets}
+        type="send"
+      />
     </div>
   );
 }

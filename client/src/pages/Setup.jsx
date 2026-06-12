@@ -28,6 +28,7 @@ export default function Setup() {
   const [addingRecruiter, setAddingRecruiter] = useState(false);
   const [selectedRecruiters, setSelectedRecruiters] = useState([]);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, type: null, count: 0 });
+  const [ocrEnabled, setOcrEnabled] = useState(false);
 
   useEffect(() => {
     fetchResume();
@@ -49,9 +50,14 @@ export default function Setup() {
   const fetchRecruiters = async () => {
     try {
       const data = await get('/api/recruiters');
-      setRecruiters(data?.recruiters || data || []);
+      const newRecruiters = data?.recruiters || data || [];
+      setRecruiters(newRecruiters);
+      // Prune stale selections — remove IDs that no longer exist
+      const validIds = new Set(newRecruiters.map(r => r.id || r._id));
+      setSelectedRecruiters(prev => prev.filter(id => validIds.has(id)));
     } catch {
       setRecruiters([]);
+      setSelectedRecruiters([]);
     }
   };
 
@@ -106,6 +112,20 @@ export default function Setup() {
       toast.success('Recruiters imported from Excel!');
     } catch (err) {
       toast.error(err.message || 'Failed to import Excel');
+      throw err;
+    }
+  };
+
+  const handlePdfUpload = async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const endpoint = ocrEnabled ? '/api/recruiters/pdf?ocr=true' : '/api/recruiters/pdf';
+    try {
+      const data = await upload(endpoint, formData);
+      fetchRecruiters();
+      toast.success(data?.message || 'Recruiters imported from PDF!');
+    } catch (err) {
+      toast.error(err.message || 'Failed to import PDF');
       throw err;
     }
   };
@@ -176,10 +196,12 @@ export default function Setup() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedRecruiters.length === recruiters.length) {
+    const allIds = recruiters.map(r => r.id || r._id);
+    const allSelected = allIds.length > 0 && allIds.every(id => selectedRecruiters.includes(id));
+    if (allSelected) {
       setSelectedRecruiters([]);
     } else {
-      setSelectedRecruiters(recruiters.map(r => r.id || r._id));
+      setSelectedRecruiters(allIds);
     }
   };
 
@@ -285,18 +307,18 @@ export default function Setup() {
             <div>
               <h2 className="text-3xl font-black mb-2">👥 Add Recruiters</h2>
               <p className="font-medium opacity-80">
-                Add recruiter contacts manually, via Excel, or from Google Sheets.
+                Add recruiter contacts manually, via Excel, PDF, or from Google Sheets.
               </p>
             </div>
 
             <div className="flex flex-wrap gap-4 border-b-4 border-border pb-4">
-              {['manual', 'excel', 'sheets'].map((tab) => (
+              {['manual', 'excel', 'pdf', 'sheets'].map((tab) => (
                 <button
                   key={tab}
                   className={`px-6 py-2 border-2 border-border font-bold rounded-full transition-all ${recruiterTab === tab ? 'bg-neo-purple text-bw shadow-neosm translate-y-0.5' : 'bg-bw hover:bg-gray-100 shadow-neo hover:translate-y-[-2px]'}`}
                   onClick={() => setRecruiterTab(tab)}
                 >
-                  {tab === 'manual' ? '✏️ Manual' : tab === 'excel' ? '📊 Excel' : '📋 Sheets'}
+                  {tab === 'manual' ? '✏️ Manual' : tab === 'excel' ? '📊 Excel' : tab === 'pdf' ? '📄 PDF' : '📋 Sheets'}
                 </button>
               ))}
             </div>
@@ -350,6 +372,65 @@ export default function Setup() {
               </div>
             )}
 
+            {recruiterTab === 'pdf' && (
+              <div className="flex flex-col gap-5">
+                {/* OCR Toggle - Premium Style */}
+                <div className={`border-4 rounded-base p-5 transition-all duration-300 ${ocrEnabled ? 'bg-gradient-to-r from-purple-50 to-indigo-50 border-neo-purple shadow-neo' : 'bg-bw border-border'}`}>
+                  <div className="flex items-center justify-between gap-4 flex-wrap">
+                    <div className="flex items-center gap-3">
+                      <span className="text-3xl">{ocrEnabled ? '🔬' : '📝'}</span>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-black text-lg">OCR Engine</span>
+                          <span className="text-[10px] font-black uppercase tracking-widest bg-gradient-to-r from-purple-500 to-indigo-500 text-white px-2 py-0.5 rounded-full">✨ Premium</span>
+                        </div>
+                        <p className="text-sm font-medium opacity-70 mt-0.5">
+                          {ocrEnabled 
+                            ? 'Scanned/image PDFs will be processed with Tesseract OCR engine' 
+                            : 'Enable for scanned or image-based PDFs that don\'t have selectable text'}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setOcrEnabled(!ocrEnabled)}
+                      className={`relative w-16 h-8 rounded-full border-2 border-border transition-all duration-300 flex-shrink-0 ${ocrEnabled ? 'bg-gradient-to-r from-purple-500 to-indigo-500' : 'bg-gray-300'}`}
+                      title={ocrEnabled ? 'Disable OCR' : 'Enable OCR'}
+                    >
+                      <span className={`absolute top-0.5 w-6 h-6 rounded-full bg-white border-2 border-border shadow-neosm transition-all duration-300 ${ocrEnabled ? 'left-[calc(100%-1.625rem)]' : 'left-0.5'}`} />
+                    </button>
+                  </div>
+                  {ocrEnabled && (
+                    <div className="mt-4 bg-white/60 border-2 border-purple-200 rounded-base p-3 flex items-start gap-2">
+                      <span className="text-lg">⚡</span>
+                      <p className="text-xs font-bold opacity-80">
+                        OCR mode converts each PDF page to a high-resolution image, then uses the Tesseract engine to extract text. This takes longer but works on scanned documents, screenshots, and image-based PDFs.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Format hint */}
+                <div className="bg-neo-yellow/20 border-2 border-neo-yellow rounded-base p-4 flex items-start gap-3">
+                  <span className="text-2xl">💡</span>
+                  <div>
+                    <p className="font-bold text-sm mb-1">Expected PDF Format</p>
+                    <p className="text-sm opacity-80">Your PDF should contain a table with these columns:</p>
+                    <code className="text-xs bg-bw border-2 border-border rounded px-2 py-1 mt-1 inline-block font-bold">SNo &nbsp; Name &nbsp; Email &nbsp; Title &nbsp; Company</code>
+                  </div>
+                </div>
+
+                {/* File Upload */}
+                <div className="border-4 border-dashed border-border rounded-base p-8 hover:bg-gray-50 transition-colors">
+                  <FileUpload
+                    accept=".pdf"
+                    onUpload={handlePdfUpload}
+                    label={ocrEnabled ? 'Drop your scanned PDF here (OCR)' : 'Drop your HR recruiter PDF here'}
+                    icon={ocrEnabled ? '🔬' : '📄'}
+                  />
+                </div>
+              </div>
+            )}
+
             {recruiterTab === 'sheets' && (
               <div className="flex flex-col gap-4 max-w-md">
                 <div className="flex flex-col gap-1">
@@ -377,7 +458,7 @@ export default function Setup() {
                       <span className="text-sm font-bold bg-neo-yellow px-2 py-1 rounded-base border-2 border-border">{selectedRecruiters.length} selected</span>
                     )}
                     <button className="btn-neo btn-neo-white text-xs px-4" onClick={toggleSelectAll}>
-                      {selectedRecruiters.length === recruiters.length ? 'Deselect All' : 'Select All'}
+                      {recruiters.length > 0 && recruiters.every(r => selectedRecruiters.includes(r.id || r._id)) ? 'Deselect All' : 'Select All'}
                     </button>
                     {selectedRecruiters.length > 0 && (
                       <button className="btn-neo bg-neo-red text-bw text-xs px-4" onClick={handleBulkDelete}>

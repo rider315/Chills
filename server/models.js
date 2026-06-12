@@ -37,7 +37,7 @@ const recruiterSchema = new mongoose.Schema({
   email: { type: String, required: true, trim: true },
   company: { type: String, default: '', trim: true },
   recruiterName: { type: String, default: '', trim: true },
-  source: { type: String, enum: ['manual', 'excel', 'sheets'], default: 'manual' },
+  source: { type: String, enum: ['manual', 'excel', 'sheets', 'pdf'], default: 'manual' },
 }, { timestamps: true });
 
 recruiterSchema.index({ userId: 1, email: 1 }, { unique: true });

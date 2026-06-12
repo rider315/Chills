@@ -9,11 +9,13 @@
     "dev:client": "cd client && npm run dev",
     "install:all": "npm install && cd client && npm install",
     "build": "cd client && npm install && npm run build",
-    "start": "node server/index.js"
+    "start": "node server/index.js",
+    "postinstall": "node postinstall.js"
   },
   "dependencies": {
     "@heyputer/puter.js": "^2.5.1",
     "bcryptjs": "^3.0.3",
+    "canvas": "^3.2.3",
     "concurrently": "^9.1.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
@@ -24,8 +26,10 @@
     "nodemailer": "^6.9.16",
     "nodemon": "^3.1.14",
     "openai": "^4.0.0",
+    "pdf-img-convert": "^2.0.0",
     "pdf-parse": "^1.1.1",
     "razorpay": "^2.9.6",
+    "tesseract.js": "^7.0.0",
     "uuid": "^11.1.0",
     "xlsx": "^0.18.5"
   }

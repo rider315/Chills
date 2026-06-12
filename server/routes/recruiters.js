@@ -3,11 +3,11 @@ const multer = require('multer');
 const path = require('path');
 const config = require('../config');
 const { Recruiter } = require('../models');
-const { parseExcel, parseGoogleSheet } = require('../services/fileParser');
+const { parseExcel, parseGoogleSheet, parsePDFRecruiters, ocrParsePDFRecruiters } = require('../services/fileParser');
 
 const router = express.Router();
 
-// Configure multer for Excel uploads
+// Configure multer for Excel/PDF uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, config.uploadsDir),
   filename: (req, file, cb) => {
@@ -22,11 +22,12 @@ const upload = multer({
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'application/vnd.ms-excel',
       'text/csv',
+      'application/pdf',
     ];
-    if (allowed.includes(file.mimetype) || /\.(xlsx|xls|csv)$/i.test(file.originalname)) {
+    if (allowed.includes(file.mimetype) || /\.(xlsx|xls|csv|pdf)$/i.test(file.originalname)) {
       cb(null, true);
     } else {
-      cb(new Error('Only Excel (.xlsx, .xls) and CSV files are allowed.'), false);
+      cb(new Error('Only Excel (.xlsx, .xls), CSV, and PDF files are allowed.'), false);
     }
   },
   limits: { fileSize: 10 * 1024 * 1024 },
@@ -116,6 +117,75 @@ router.post('/excel', upload.single('file'), async (req, res) => {
   } catch (error) {
     console.error('Excel import error:', error);
     return res.status(500).json({ error: `Failed to import Excel file: ${error.message}` });
+  }
+});
+
+/**
+ * POST /api/recruiters/pdf
+ * Upload a PDF file containing HR recruiter contacts and import them.
+ * Expected PDF table columns: SNo, Name, Email, Title, Company
+ * Query params:
+ *   - ocr=true: Use OCR engine for scanned/image-based PDFs (slower but handles images)
+ */
+router.post('/pdf', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded. Use field name "file" with a PDF file.' });
+    }
+
+    const useOCR = req.query.ocr === 'true';
+    const fs = require('fs');
+    const buffer = fs.readFileSync(req.file.path);
+
+    let parsed;
+    if (useOCR) {
+      console.log('[PDF Import] Using OCR engine for scanned PDF...');
+      parsed = await ocrParsePDFRecruiters(buffer);
+    } else {
+      parsed = await parsePDFRecruiters(buffer);
+    }
+
+    if (parsed.length === 0) {
+      return res.status(400).json({
+        error: useOCR
+          ? 'No valid recruiter rows found via OCR. Ensure the PDF has a readable table with columns like SNo, Name, Email, Title, Company.'
+          : 'No valid recruiter rows found in the PDF. Try enabling OCR mode if this is a scanned/image-based PDF.',
+      });
+    }
+
+    const existingEmails = new Set(
+      (await Recruiter.find({ userId: req.user._id }, 'email')).map((r) => r.email.toLowerCase())
+    );
+    let added = 0;
+    let skipped = 0;
+
+    for (const row of parsed) {
+      if (existingEmails.has(row.email.toLowerCase())) {
+        skipped++;
+        continue;
+      }
+      await Recruiter.create({
+        userId: req.user._id,
+        email: row.email.toLowerCase(),
+        company: row.company,
+        recruiterName: row.recruiterName,
+        source: 'pdf',
+      });
+      existingEmails.add(row.email.toLowerCase());
+      added++;
+    }
+
+    const total = await Recruiter.countDocuments({ userId: req.user._id });
+
+    return res.status(200).json({
+      message: `Imported ${added} recruiter(s) from PDF${useOCR ? ' (OCR)' : ''}. Skipped ${skipped} duplicate(s).`,
+      added,
+      skipped,
+      total,
+    });
+  } catch (error) {
+    console.error('PDF import error:', error);
+    return res.status(500).json({ error: `Failed to import PDF file: ${error.message}` });
   }
 });
 
