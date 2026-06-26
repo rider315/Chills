@@ -55,6 +55,7 @@ const usageRoutes = require('./routes/usage');
 const subscriptionRoutes = require('./routes/subscriptions');
 const webhookRoutes = require('./routes/webhooks');
 const trackingRoutes = require('./routes/tracking');
+const pdfTestRoutes = require('./routes/pdfTest');
 const authMiddleware = require('./middleware/auth');
 
 // Public routes
@@ -71,6 +72,7 @@ app.use('/api/replies', authMiddleware, replyRoutes);
 app.use('/api/settings', authMiddleware, settingsRoutes);
 app.use('/api/usage', authMiddleware, usageRoutes);
 app.use('/api/subscriptions', authMiddleware, subscriptionRoutes);
+app.use('/api/pdf-test', authMiddleware, pdfTestRoutes);
 
 // ---------------------------------------------------------------------------
 // Health check

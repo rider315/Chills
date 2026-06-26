@@ -191,6 +191,14 @@ async function parsePDFRecruiters(buffer) {
  *   4. Extract company from after the email using camelCase boundary heuristics
  */
 function extractRecruitersFromText(text) {
+  // === Pre-process: rejoin emails split across line breaks ===
+  // Case 1: "john@\ncompany.com" → line breaks right after @
+  text = text.replace(/@\s*\r?\n\s*/g, '@');
+  // Case 2: "john@company.\ncom" → domain split after dot
+  text = text.replace(/(@[a-zA-Z0-9\-]+)\.\s*\r?\n\s*([a-zA-Z]{2,})/g, '$1.$2');
+  // Case 3: "john@company\n.com" → domain split before dot
+  text = text.replace(/(@[a-zA-Z0-9\-]+)\s*\r?\n\s*\.([a-zA-Z]{2,})/g, '$1.$2');
+
   const lines = text
     .split('\n')
     .map((l) => l.trim())
@@ -200,8 +208,11 @@ function extractRecruitersFromText(text) {
     return [];
   }
 
-  // Common TLDs to detect where the domain ends in zero-spaced text
-  const tldPattern = /^([\w.\-]+\.(?:com|co\.in|co|in|io|ai|org|net|ch|edu|gov|info|biz|me|us|uk|de|fr|ca|au))/i;
+  // Common TLDs to detect where the domain ends in zero-spaced text.
+  // Uses lazy quantifier (*?) so that in zero-spaced text like "wobot.aiCHROWobot.ai"
+  // we match the shortest valid domain ("wobot.ai") instead of the greedy full string.
+  // Multi-part TLDs (co.in, co.uk) are listed first to match before shorter alternatives.
+  const tldPattern = /^([\w\-]+(?:\.[\w\-]+)*?\.(?:co\.in|co\.uk|com|org|net|edu|gov|solutions|software|digital|systems|online|design|group|cloud|world|store|site|info|tech|mobi|asia|biz|pro|app|dev|xyz|io|ai|cc|gg|tv|me|us|uk|in|de|fr|ca|au|co|ch|ly|to|vc|eu|nl|es|it|pl|br|sg|hk|nz|za|se|no|dk|at|be|ie))/i;
 
   // Skip header lines
   let startIdx = 0;
@@ -275,6 +286,36 @@ function extractRecruitersFromText(text) {
         }
       }
 
+      // Strategy 1b: First-initial + last-name email pattern
+      // Many recruiter emails follow: firstInitial + lastName (e.g., "agoka" = a(swanth) + goka)
+      // For "Gokaagoka": preceding first name "Aswanth" → initial 'a' → check if 'a' + prefix
+      // of fullLocal (the last name "goka") matches the remaining suffix → "agoka" = "agoka" ✓
+      // This MUST run before Strategy 2's duplicate detection, which would incorrectly split
+      // "Gokaagoka" at position 5 ("goka") instead of the correct position 4 ("agoka").
+      if (realLocalStart === localStart && precedingWords.length > 0) {
+        const strippedFL = fullLocal.replace(/^\d+/, '');
+        const dOffFL = fullLocal.length - strippedFL.length;
+
+        if (strippedFL.length >= 5) {
+          for (const word of precedingWords) {
+            if (word.length < 2) continue;
+            const initial = word[0].toLowerCase();
+
+            for (let nLen = 2; nLen <= strippedFL.length - 3; nLen++) {
+              const lastNamePart = strippedFL.substring(0, nLen).toLowerCase();
+              const candidateEmail = initial + lastNamePart;
+              const remaining = strippedFL.substring(nLen).toLowerCase();
+
+              if (remaining === candidateEmail) {
+                realLocalStart = localStart + dOffFL + nLen;
+                break;
+              }
+            }
+            if (realLocalStart !== localStart) break;
+          }
+        }
+      }
+
       // Strategy 2: For single-word names (no preceding words found, or Strategy 1 didn't match)
       if (realLocalStart === localStart && fullLocal.length >= 4) {
         // Strip leading digits (serial numbers like "18" in "18Amitamit.malhotra")
@@ -323,10 +364,96 @@ function extractRecruitersFromText(text) {
         }
       }
 
+      // Strategy 3: Detect company-name fragments glued to the email local part.
+      // Example: "Solutionsqa@artoonsolutions.com" — "Solutions" is a suffix of domain base
+      //          "artoonsolutions", so strip it to get the real email "qa@artoonsolutions.com".
+      if (realLocalStart === localStart && fullLocal.length >= 6) {
+        const strippedDigits = fullLocal.replace(/^\d+/, '');
+        const dOff = fullLocal.length - strippedDigits.length;
+
+        if (strippedDigits.length >= 6) {
+          const firstDot = domain.indexOf('.');
+          if (firstDot > 0) {
+            const domainBase = domain.substring(0, firstDot).toLowerCase();
+            const lowerStripped = strippedDigits.toLowerCase();
+
+            // Try longest prefix first; it must be a proper suffix of domainBase
+            for (let pLen = Math.min(lowerStripped.length - 2, domainBase.length - 1); pLen >= 4; pLen--) {
+              const prefix = lowerStripped.substring(0, pLen);
+              if (domainBase.endsWith(prefix)) {
+                const rest = strippedDigits.substring(pLen);
+                if (rest.length >= 2 && /[a-zA-Z]/.test(rest)) {
+                  realLocalStart = localStart + dOff + pLen;
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Strategy 5 (last resort): CamelCase boundary split for no-overlap cases.
+      // When name and email share NO common substring (e.g., "John Doe" + "admin@co.com"),
+      // all previous strategies fail. fullLocal = "Doeadmin" with 'D' from name.
+      // Detect: find the last CamelCase boundary (uppercase letter), split there,
+      // and check if the remaining suffix is all-lowercase and ≥ 3 chars → email.
+      if (realLocalStart === localStart && fullLocal.length >= 5) {
+        // Find all positions where an uppercase letter starts a new word
+        const camelBoundaries = [];
+        for (let ci = 1; ci < fullLocal.length; ci++) {
+          if (/[A-Z]/.test(fullLocal[ci])) {
+            camelBoundaries.push(ci);
+          }
+        }
+        // The email is likely after the LAST name word (which starts with uppercase).
+        // Try each CamelCase boundary from LAST to FIRST: if everything after it
+        // is lowercase (email-like), split there.
+        for (let bi = camelBoundaries.length - 1; bi >= 0; bi--) {
+          const pos = camelBoundaries[bi];
+          const suffix = fullLocal.substring(pos);
+          // Email local parts are lowercase; name words start with uppercase then lowercase
+          // So the suffix after a CamelCase boundary is a name word, not email.
+          // We want the first boundary where the SUFFIX's continuation is all-lowercase:
+          // e.g., "JohnDoeadmin" → boundary at 4 (D) → suffix "Doeadmin" starts uppercase → skip
+          // Instead, look for the start of the all-lowercase tail.
+        }
+
+        // Alternative: find the longest all-lowercase suffix ≥ 3 chars, preceded by uppercase
+        if (realLocalStart === localStart) {
+          let lowStart = fullLocal.length;
+          for (let ci = fullLocal.length - 1; ci >= 1; ci--) {
+            if (/[a-z0-9._\-]/.test(fullLocal[ci])) {
+              lowStart = ci;
+            } else {
+              break; // hit an uppercase letter — stop
+            }
+          }
+          const lowSuffix = fullLocal.substring(lowStart);
+          const namePrefix = fullLocal.substring(0, lowStart);
+          // Valid split: name has ≥ 1 char, email suffix ≥ 3 chars and all lowercase,
+          // and the name prefix ends with an uppercase letter (the start of the last name word)
+          if (lowStart >= 1 && lowSuffix.length >= 3 && /[A-Z]/.test(namePrefix[namePrefix.length - 1])) {
+            // The namePrefix ends at an uppercase letter (start of last name word)
+            // which then continues into lowSuffix. This means the email starts mid-word.
+            // Don't split here — the uppercase letter is part of the name, not the email.
+          } else if (lowStart >= 2 && lowSuffix.length >= 3 && /[A-Z]/.test(fullLocal[0])) {
+            // The name portion starts uppercase, email portion is all lowercase
+            realLocalStart = localStart + lowStart;
+          }
+        }
+      }
+
       const email = line.substring(realLocalStart, emailEnd);
 
-      // Skip if email is clearly invalid
-      if (!email.includes('@') || email.length < 5) {
+      // === Enhanced email validation ===
+      const localPart = email.split('@')[0];
+      if (
+        !email.includes('@') ||
+        email.length < 5 ||
+        localPart.length < 2 ||
+        localPart.length > 64 ||
+        !/^[a-zA-Z0-9]/.test(localPart)
+      ) {
         searchFrom = emailEnd;
         continue;
       }
@@ -405,12 +532,15 @@ function extractRecruitersFromText(text) {
  * OCR-based PDF parsing — smart "try everything" mode.
  * 
  * Strategy:
- *   1. First try text extraction via pdf-parse (fast, works for digital PDFs)
- *   2. If text extraction finds recruiters, return them immediately
- *   3. Only if text extraction yields nothing, fall back to canvas rendering + Tesseract OCR
- *      (for scanned/image-based PDFs)
+ *   1. Try text extraction via pdf-parse (fast, works for digital PDFs)
+ *   2. Validate extraction quality: compare extracted count vs @ signs in text
+ *   3. If extraction looks complete (≥50% of @ signs captured), return immediately
+ *   4. If extraction looks incomplete or empty, fall back to canvas + Tesseract OCR
+ *   5. Return whichever method (text vs OCR) found more recruiters
  */
 async function ocrParsePDFRecruiters(buffer) {
+  let textRecruiters = null;
+
   // --- Phase 1: Try text extraction first (fast path) ---
   console.log('[OCR] Phase 1: Attempting text extraction...');
   try {
@@ -418,13 +548,25 @@ async function ocrParsePDFRecruiters(buffer) {
     const text = textData.text || '';
     
     if (text.trim().length > 50) {
-      const textRecruiters = extractRecruitersFromText(text);
+      textRecruiters = extractRecruitersFromText(text);
+      const atSignCount = (text.match(/@/g) || []).length;
+
       if (textRecruiters.length > 0) {
-        console.log(`[OCR] Text extraction found ${textRecruiters.length} recruiters. Skipping image OCR.`);
-        return textRecruiters;
+        // Quality check: did we capture a reasonable fraction of the @ signs?
+        // If yes, text extraction is working well — return immediately (skip slow OCR).
+        // If no, the text may be garbled/partial — fall through to OCR.
+        const captureRatio = atSignCount > 0 ? textRecruiters.length / atSignCount : 1;
+        if (captureRatio >= 0.5 || atSignCount <= 2) {
+          console.log(`[OCR] Text extraction found ${textRecruiters.length}/${atSignCount} emails (${Math.round(captureRatio * 100)}%). Results look complete.`);
+          return textRecruiters;
+        }
+        console.log(`[OCR] Text extraction found only ${textRecruiters.length}/${atSignCount} emails (${Math.round(captureRatio * 100)}%). Trying OCR for better results...`);
+      } else {
+        console.log('[OCR] Text extraction found no recruiters. Falling back to image OCR...');
       }
+    } else {
+      console.log('[OCR] Text extraction returned insufficient text. Falling back to image OCR...');
     }
-    console.log('[OCR] Text extraction found no recruiters. Falling back to image OCR...');
   } catch (e) {
     console.log('[OCR] Text extraction failed:', e.message, '. Falling back to image OCR...');
   }
@@ -512,6 +654,14 @@ async function ocrParsePDFRecruiters(buffer) {
 
   const ocrRecruiters = extractRecruitersFromText(combinedText);
   console.log(`[OCR] Found ${ocrRecruiters.length} recruiters from OCR.`);
+
+  // --- Phase 3: Return the better result ---
+  // Compare text extraction (Phase 1) vs OCR (Phase 2) and return whichever found more.
+  if (textRecruiters && textRecruiters.length >= ocrRecruiters.length) {
+    console.log(`[OCR] Text extraction (${textRecruiters.length}) ≥ OCR (${ocrRecruiters.length}). Using text results.`);
+    return textRecruiters;
+  }
+
   return ocrRecruiters;
 }
 

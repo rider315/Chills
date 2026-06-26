@@ -14,6 +14,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Pricing from './pages/Pricing';
 import LandingPage from './pages/LandingPage';
+import PdfTest from './pages/PdfTest';
 import './index.css';
 
 /**
@@ -223,6 +224,7 @@ export default function App() {
               <Route path="/applications" element={<ProtectedRoute><Applications /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
               <Route path="/pricing" element={<ProtectedRoute><Pricing /></ProtectedRoute>} />
+              <Route path="/pdf-test" element={<ProtectedRoute><PdfTest /></ProtectedRoute>} />
             </Route>
           </Routes>
         </BrowserRouter>

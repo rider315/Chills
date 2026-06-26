@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { path: '/setup',        icon: '🚀', label: 'Setup' },
   { path: '/emails',       icon: '✉️', label: 'Emails' },
   { path: '/applications', icon: '📋', label: 'Applications' },
+  { path: '/pdf-test',     icon: '🔬', label: 'PDF Tester' },
   { path: '/pricing',      icon: '💎', label: 'Pricing' },
   { path: '/settings',     icon: '⚙️', label: 'Settings' },
 ];
