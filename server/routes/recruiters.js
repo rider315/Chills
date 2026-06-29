@@ -4,8 +4,102 @@ const path = require('path');
 const config = require('../config');
 const { Recruiter } = require('../models');
 const { parseExcel, parseGoogleSheet, parsePDFRecruiters, ocrParsePDFRecruiters } = require('../services/fileParser');
+const { validateEmail, validateEmails } = require('../services/emailValidator');
 
 const router = express.Router();
+
+/**
+ * Shared import pipeline used by every bulk source (Excel, PDF, Sheets).
+ *
+ * Steps: validate each email (syntax + domain deliverability + disposable/typo
+ * guards), drop invalid + duplicate rows, then bulk-insert the survivors.
+ * Invalid contacts are never persisted, so they can never reach AI generation
+ * or an outbound campaign. The import always completes — bad rows are reported,
+ * not fatal.
+ *
+ * @returns {object} response payload including a per-email rejection breakdown.
+ */
+async function importRecruiters(userId, rows, source) {
+  const processed = rows.length;
+
+  // Existing emails for duplicate detection — one indexed query.
+  const existingEmails = new Set(
+    (await Recruiter.find({ userId }, 'email')).map((r) => r.email.toLowerCase())
+  );
+
+  // Validate every email up-front: batched, bounded concurrency, cached DNS.
+  const validations = await validateEmails(rows.map((r) => r.email));
+
+  const toInsert = [];
+  const rejected = [];
+  const seenInBatch = new Set();
+  let duplicates = 0;
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const result = validations[i];
+
+    if (!result.valid) {
+      rejected.push({
+        email: result.input || row.email || '',
+        reason: result.reason,
+        message: result.message,
+        ...(result.suggestion ? { suggestion: result.suggestion } : {}),
+      });
+      continue;
+    }
+
+    const email = result.normalized;
+    // Duplicate against the DB or an earlier row in this same file.
+    if (existingEmails.has(email) || seenInBatch.has(email)) {
+      duplicates++;
+      continue;
+    }
+
+    seenInBatch.add(email);
+    toInsert.push({
+      userId,
+      email,
+      company: (row.company || '').trim(),
+      recruiterName: (row.recruiterName || '').trim(),
+      source,
+    });
+  }
+
+  let imported = 0;
+  if (toInsert.length > 0) {
+    // ordered:false → a single dup-key race won't abort the whole batch.
+    try {
+      const inserted = await Recruiter.insertMany(toInsert, { ordered: false });
+      imported = inserted.length;
+    } catch (err) {
+      imported = err.insertedDocs ? err.insertedDocs.length : (err.result?.result?.nInserted ?? 0);
+      duplicates += toInsert.length - imported;
+    }
+  }
+
+  const total = await Recruiter.countDocuments({ userId });
+
+  return {
+    summary: { processed, imported, duplicates, rejected: rejected.length },
+    rejectedDetails: rejected,
+    // Backward-compatible fields for any older client code.
+    added: imported,
+    skipped: duplicates,
+    total,
+  };
+}
+
+/**
+ * Build a concise human summary line for a toast/notification.
+ */
+function buildImportMessage(result, label) {
+  const { imported, duplicates, rejected } = result.summary;
+  const parts = [`Imported ${imported} recruiter(s)${label ? ` from ${label}` : ''}.`];
+  if (duplicates) parts.push(`Skipped ${duplicates} duplicate(s).`);
+  if (rejected) parts.push(`Rejected ${rejected} invalid email(s).`);
+  return parts.join(' ');
+}
 
 // Configure multer for Excel/PDF uploads
 const storage = multer.diskStorage({
@@ -41,19 +135,33 @@ router.post('/manual', async (req, res) => {
   try {
     const { email, company, recruiterName } = req.body;
 
-    if (!email || !email.includes('@')) {
-      return res.status(400).json({ error: 'A valid email address is required.' });
+    if (!email) {
+      return res.status(400).json({ error: 'An email address is required.' });
     }
 
+    // Full validation: syntax + domain deliverability + disposable/typo guards.
+    const validation = await validateEmail(email);
+    if (!validation.valid) {
+      return res.status(400).json({
+        error: validation.suggestion
+          ? `${validation.message} Did you mean ${validation.suggestion}?`
+          : validation.message,
+        reason: validation.reason,
+        ...(validation.suggestion ? { suggestion: validation.suggestion } : {}),
+      });
+    }
+
+    const normalizedEmail = validation.normalized;
+
     // Check for duplicate email
-    const existing = await Recruiter.findOne({ email: email.toLowerCase().trim(), userId: req.user._id });
+    const existing = await Recruiter.findOne({ email: normalizedEmail, userId: req.user._id });
     if (existing) {
-      return res.status(409).json({ error: `A recruiter with email "${email}" already exists.` });
+      return res.status(409).json({ error: `A recruiter with email "${normalizedEmail}" already exists.` });
     }
 
     const recruiter = await Recruiter.create({
       userId: req.user._id,
-      email: email.trim().toLowerCase(),
+      email: normalizedEmail,
       company: (company || '').trim(),
       recruiterName: (recruiterName || '').trim(),
       source: 'manual',
@@ -84,35 +192,11 @@ router.post('/excel', upload.single('file'), async (req, res) => {
       return res.status(400).json({ error: 'No valid recruiter rows found in the Excel file.' });
     }
 
-    const existingEmails = new Set(
-      (await Recruiter.find({ userId: req.user._id }, 'email')).map((r) => r.email.toLowerCase())
-    );
-    let added = 0;
-    let skipped = 0;
-
-    for (const row of parsed) {
-      if (existingEmails.has(row.email.toLowerCase())) {
-        skipped++;
-        continue;
-      }
-      await Recruiter.create({
-        userId: req.user._id,
-        email: row.email.toLowerCase(),
-        company: row.company,
-        recruiterName: row.recruiterName,
-        source: 'excel',
-      });
-      existingEmails.add(row.email.toLowerCase());
-      added++;
-    }
-
-    const total = await Recruiter.countDocuments({ userId: req.user._id });
+    const result = await importRecruiters(req.user._id, parsed, 'excel');
 
     return res.status(200).json({
-      message: `Imported ${added} recruiter(s). Skipped ${skipped} duplicate(s).`,
-      added,
-      skipped,
-      total,
+      message: buildImportMessage(result, 'Excel'),
+      ...result,
     });
   } catch (error) {
     console.error('Excel import error:', error);
@@ -153,35 +237,11 @@ router.post('/pdf', upload.single('file'), async (req, res) => {
       });
     }
 
-    const existingEmails = new Set(
-      (await Recruiter.find({ userId: req.user._id }, 'email')).map((r) => r.email.toLowerCase())
-    );
-    let added = 0;
-    let skipped = 0;
-
-    for (const row of parsed) {
-      if (existingEmails.has(row.email.toLowerCase())) {
-        skipped++;
-        continue;
-      }
-      await Recruiter.create({
-        userId: req.user._id,
-        email: row.email.toLowerCase(),
-        company: row.company,
-        recruiterName: row.recruiterName,
-        source: 'pdf',
-      });
-      existingEmails.add(row.email.toLowerCase());
-      added++;
-    }
-
-    const total = await Recruiter.countDocuments({ userId: req.user._id });
+    const result = await importRecruiters(req.user._id, parsed, 'pdf');
 
     return res.status(200).json({
-      message: `Imported ${added} recruiter(s) from PDF${useOCR ? ' (OCR)' : ''}. Skipped ${skipped} duplicate(s).`,
-      added,
-      skipped,
-      total,
+      message: buildImportMessage(result, `PDF${useOCR ? ' (OCR)' : ''}`),
+      ...result,
     });
   } catch (error) {
     console.error('PDF import error:', error);
@@ -207,35 +267,11 @@ router.post('/sheets', async (req, res) => {
       return res.status(400).json({ error: 'No valid recruiter rows found in the Google Sheet.' });
     }
 
-    const existingEmails = new Set(
-      (await Recruiter.find({ userId: req.user._id }, 'email')).map((r) => r.email.toLowerCase())
-    );
-    let added = 0;
-    let skipped = 0;
-
-    for (const row of parsed) {
-      if (existingEmails.has(row.email.toLowerCase())) {
-        skipped++;
-        continue;
-      }
-      await Recruiter.create({
-        userId: req.user._id,
-        email: row.email.toLowerCase(),
-        company: row.company,
-        recruiterName: row.recruiterName,
-        source: 'sheets',
-      });
-      existingEmails.add(row.email.toLowerCase());
-      added++;
-    }
-
-    const total = await Recruiter.countDocuments({ userId: req.user._id });
+    const result = await importRecruiters(req.user._id, parsed, 'sheets');
 
     return res.status(200).json({
-      message: `Imported ${added} recruiter(s) from Google Sheets. Skipped ${skipped} duplicate(s).`,
-      added,
-      skipped,
-      total,
+      message: buildImportMessage(result, 'Google Sheets'),
+      ...result,
     });
   } catch (error) {
     console.error('Google Sheets import error:', error);

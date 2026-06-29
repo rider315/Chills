@@ -29,6 +29,7 @@ export default function Setup() {
   const [selectedRecruiters, setSelectedRecruiters] = useState([]);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, type: null, count: 0 });
   const [ocrEnabled, setOcrEnabled] = useState(false);
+  const [importSummary, setImportSummary] = useState(null);
 
   useEffect(() => {
     fetchResume();
@@ -103,13 +104,26 @@ export default function Setup() {
     }
   };
 
+  // Show a toast that reflects what actually happened (imported / skipped / rejected).
+  const reportImport = (data) => {
+    setImportSummary(data?.summary ? data : null);
+    const s = data?.summary;
+    if (s) {
+      if (s.imported > 0) toast.success(data.message);
+      else if (s.rejected > 0 || s.duplicates > 0) toast.warning(data.message);
+      else toast.info(data.message || 'No new recruiters imported.');
+    } else {
+      toast.success(data?.message || 'Recruiters imported!');
+    }
+  };
+
   const handleExcelUpload = async (file) => {
     const formData = new FormData();
     formData.append('file', file);
     try {
-      await upload('/api/recruiters/excel', formData);
+      const data = await upload('/api/recruiters/excel', formData);
       fetchRecruiters();
-      toast.success('Recruiters imported from Excel!');
+      reportImport(data);
     } catch (err) {
       toast.error(err.message || 'Failed to import Excel');
       throw err;
@@ -123,7 +137,7 @@ export default function Setup() {
     try {
       const data = await upload(endpoint, formData);
       fetchRecruiters();
-      toast.success(data?.message || 'Recruiters imported from PDF!');
+      reportImport(data);
     } catch (err) {
       toast.error(err.message || 'Failed to import PDF');
       throw err;
@@ -133,10 +147,10 @@ export default function Setup() {
   const handleSheetsImport = async () => {
     if (!sheetsUrl.trim()) return;
     try {
-      await post('/api/recruiters/sheets', { url: sheetsUrl });
+      const data = await post('/api/recruiters/sheets', { url: sheetsUrl });
       fetchRecruiters();
       setSheetsUrl('');
-      toast.success('Recruiters imported from Google Sheets!');
+      reportImport(data);
     } catch (err) {
       toast.error(err.message || 'Failed to import from Sheets');
     }
@@ -445,6 +459,57 @@ export default function Setup() {
                 <button className="btn-neo btn-neo-blue self-start" onClick={handleSheetsImport} disabled={!sheetsUrl.trim()}>
                   📥 Import from Sheets
                 </button>
+              </div>
+            )}
+
+            {/* Import summary — shows after a bulk import (Excel/PDF/Sheets) */}
+            {importSummary?.summary && (
+              <div className="mt-6 border-4 border-border rounded-base p-5 bg-bw shadow-neo animate-fadeIn">
+                <div className="flex items-center justify-between gap-4 mb-4">
+                  <h4 className="text-xl font-black m-0">📋 Import Summary</h4>
+                  <button
+                    className="font-bold text-sm opacity-60 hover:opacity-100 hover:underline"
+                    onClick={() => setImportSummary(null)}
+                  >
+                    Dismiss ✕
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="border-2 border-border rounded-base p-3 bg-gray-50 text-center">
+                    <div className="text-3xl font-black">{importSummary.summary.processed}</div>
+                    <div className="text-xs font-bold uppercase tracking-wide opacity-70">Processed</div>
+                  </div>
+                  <div className="border-2 border-border rounded-base p-3 bg-neo-green/30 text-center">
+                    <div className="text-3xl font-black">{importSummary.summary.imported}</div>
+                    <div className="text-xs font-bold uppercase tracking-wide opacity-70">Imported</div>
+                  </div>
+                  <div className="border-2 border-border rounded-base p-3 bg-neo-yellow/40 text-center">
+                    <div className="text-3xl font-black">{importSummary.summary.duplicates}</div>
+                    <div className="text-xs font-bold uppercase tracking-wide opacity-70">Duplicates</div>
+                  </div>
+                  <div className="border-2 border-border rounded-base p-3 bg-neo-red/20 text-center">
+                    <div className="text-3xl font-black">{importSummary.summary.rejected}</div>
+                    <div className="text-xs font-bold uppercase tracking-wide opacity-70">Rejected</div>
+                  </div>
+                </div>
+
+                {Array.isArray(importSummary.rejectedDetails) && importSummary.rejectedDetails.length > 0 && (
+                  <div className="mt-4">
+                    <p className="font-bold text-sm mb-2">Rejected emails & reasons:</p>
+                    <div className="flex flex-col gap-2 max-h-64 overflow-y-auto pr-1">
+                      {importSummary.rejectedDetails.map((r, i) => (
+                        <div key={i} className="flex flex-col md:flex-row md:items-center md:justify-between gap-1 border-2 border-border rounded-base p-2 bg-neo-red/5">
+                          <span className="font-mono text-sm font-bold break-all">{r.email || '(empty)'}</span>
+                          <span className="text-xs font-bold bg-bw border-2 border-border rounded-full px-2 py-0.5 self-start md:self-auto">
+                            {r.message || r.reason}
+                            {r.suggestion ? ` → ${r.suggestion}` : ''}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
